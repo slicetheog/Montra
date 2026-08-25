@@ -5,6 +5,7 @@ import {
   assertSplitsSumToTotal,
   computeAvailableSeries,
   computeBudgetTotals,
+  computeCategoryAvailable,
   computeCreditCardOffset,
   computeNetWorth,
   computeReadyToAssign,
@@ -84,6 +85,53 @@ describe("credit card auto-offset", () => {
 
   it("moves nothing if the category was already overspent", () => {
     expect(computeCreditCardOffset(cents(8000), cents(-2000))).toBe(0);
+  });
+});
+
+describe("credit card offset composes correctly with Activity (regression: no phantom overspending)", () => {
+  // This encodes the worked example from FINANCIAL_ENGINE.md. The offset
+  // must be a SINGLE-SIDED credit to the payment category — it must never
+  // also be subtracted from the spending category, because the spending
+  // category already takes the hit once via ordinary Activity. Applying it
+  // twice would show a category as "overspent" the instant you spent
+  // exactly what you'd budgeted for it, which is wrong regardless of
+  // payment method.
+  it("spending exactly what was available leaves the category at exactly $0, not negative", () => {
+    const assigned = cents(8000); // budgeted $80 for Groceries
+    const spend = cents(8000); // $80 charged to the credit card
+    const availableBeforePurchase = assigned; // nothing else happened yet this month
+
+    const offset = computeCreditCardOffset(spend, availableBeforePurchase);
+    expect(offset).toBe(8000); // fully covered — eligible to move in full
+
+    // The spending category's Available uses ONLY assigned + activity —
+    // the offset must not appear here a second time.
+    const groceriesAvailable = computeCategoryAvailable(cents(0), {
+      assignedCents: assigned,
+      activityCents: cents(-spend), // the purchase itself, recorded once
+    });
+    expect(groceriesAvailable).toBe(0);
+
+    // The payment category receives exactly the offset as its Available
+    // (it started the month at $0, with no assignment or activity of its own).
+    const paymentAvailable = computeCategoryAvailable(cents(0), {
+      assignedCents: offset,
+      activityCents: cents(0),
+    });
+    expect(paymentAvailable).toBe(8000);
+  });
+
+  it("caps the earmarked amount at what the category had — the rest is ordinary overspending, not moved", () => {
+    const assigned = cents(3000); // only budgeted $30
+    const spend = cents(8000); // but charged $80 to the card
+    const offset = computeCreditCardOffset(spend, assigned);
+    expect(offset).toBe(3000); // only $30 could be earmarked
+
+    const groceriesAvailable = computeCategoryAvailable(cents(0), {
+      assignedCents: assigned,
+      activityCents: cents(-spend),
+    });
+    expect(groceriesAvailable).toBe(-5000); // correctly shows $50 overspent
   });
 });
 

@@ -12,7 +12,6 @@ import { useAssignMoney, useBudgetMonth, useMoveMoney } from "@/hooks/use-budget
 import { formatCents, formatMonthLabel, cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
-import { AdBanner } from "@/components/ads/ad-banner";
 
 export function BudgetScreen({ budgetId }: { budgetId: string }) {
   const [month, setMonth] = useState(() => new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)));
@@ -76,13 +75,16 @@ export function BudgetScreen({ budgetId }: { budgetId: string }) {
 
   return (
     <div className="flex flex-col">
+      <h1 className="sr-only">Budget</h1>
       <div className="border-b border-border bg-surface px-4 py-4 sm:px-6">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" onClick={() => shiftMonth(-1)} aria-label="Previous month">
               <ChevronLeft className="size-4" />
             </Button>
-            <span className="w-40 text-center text-base font-semibold">{formatMonthLabel(month)}</span>
+            <span className="w-40 text-center text-base font-semibold" aria-live="polite">
+              {formatMonthLabel(month)}
+            </span>
             <Button variant="ghost" size="icon" onClick={() => shiftMonth(1)} aria-label="Next month">
               <ChevronRight className="size-4" />
             </Button>
@@ -155,29 +157,26 @@ export function BudgetScreen({ budgetId }: { budgetId: string }) {
             const isCollapsed = collapsed[group.groupId];
             return (
               <div key={group.groupId} className="overflow-hidden rounded-lg border border-border bg-surface">
-                <button
-                  type="button"
-                  onClick={() => setCollapsed((c) => ({ ...c, [group.groupId]: !c[group.groupId] }))}
-                  className="flex w-full items-center gap-2 bg-surface-muted px-3 py-2 text-left text-sm font-semibold"
-                  aria-expanded={!isCollapsed}
-                >
-                  <ChevronDown className={cn("size-4 transition-transform", isCollapsed && "-rotate-90")} />
-                  {group.name}
+                <div className="flex w-full items-center gap-2 bg-surface-muted px-3 py-2 text-sm font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setCollapsed((c) => ({ ...c, [group.groupId]: !c[group.groupId] }))}
+                    className="flex flex-1 items-center gap-2 text-left"
+                    aria-expanded={!isCollapsed}
+                  >
+                    <ChevronDown className={cn("size-4 shrink-0 transition-transform", isCollapsed && "-rotate-90")} />
+                    {group.name}
+                  </button>
                   {!group.isSystem && (
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setAddCategoryFor(group.groupId);
-                      }}
-                      onKeyDown={(e) => e.key === "Enter" && setAddCategoryFor(group.groupId)}
-                      className="ml-auto flex items-center gap-1 rounded px-2 py-0.5 text-xs font-normal text-foreground-muted hover:bg-surface hover:text-foreground"
+                    <button
+                      type="button"
+                      onClick={() => setAddCategoryFor(group.groupId)}
+                      className="flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-xs font-normal text-foreground-muted hover:bg-surface hover:text-foreground"
                     >
                       <Plus className="size-3" /> Category
-                    </span>
+                    </button>
                   )}
-                </button>
+                </div>
                 {!isCollapsed && (
                   <div>
                     <CategoryRowHeader />
@@ -205,8 +204,6 @@ export function BudgetScreen({ budgetId }: { budgetId: string }) {
           Add category group
         </Button>
       </div>
-
-      <AdBanner slot="budget-footer" />
 
       <MoveMoneyDialog
         open={Boolean(moveDialogFor)}

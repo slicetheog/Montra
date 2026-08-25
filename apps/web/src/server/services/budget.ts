@@ -11,6 +11,7 @@ import {
   assertCanMove,
   monthEndExclusive,
   monthStart,
+  toDecimalString,
   ZERO,
 } from "@montra/domain";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/server/api-helpers";
@@ -188,7 +189,7 @@ export async function getMonthView(userId: string, budgetId: string, month: Date
 // Assign / move money
 // ---------------------------------------------------------------------------
 
-async function requireCategoryInBudget(categoryId: string, budgetId: string) {
+export async function requireCategoryInBudget(categoryId: string, budgetId: string) {
   const category = await prisma.category.findUnique({ where: { id: categoryId } });
   if (!category || category.budgetId !== budgetId) throw new NotFoundError("That category couldn't be found.");
   return category;
@@ -239,7 +240,13 @@ export async function moveMoney(
   const normalized = monthStart(month);
 
   const availableInSource = await getCategoryAvailable(prisma, fromCategoryId, normalized);
-  assertCanMove(availableInSource, cents(amountCents));
+  try {
+    assertCanMove(availableInSource, cents(amountCents));
+  } catch {
+    throw new ConflictError(
+      `Only ${toDecimalString(availableInSource)} is available in that category to move.`,
+    );
+  }
 
   await prisma.$transaction(async (tx) => {
     const budgetMonth = await getOrCreateBudgetMonth(tx, budgetId, normalized);
@@ -284,6 +291,22 @@ export async function moveMoney(
 // Category groups & categories
 // ---------------------------------------------------------------------------
 
+/** Flat groups+categories list, independent of any month — used to populate pickers in forms. */
+export async function listCategories(userId: string, budgetId: string) {
+  await requireBudgetOwnership(budgetId, userId);
+  return prisma.categoryGroup.findMany({
+    where: { budgetId, isArchived: false },
+    orderBy: { sortOrder: "asc" },
+    include: {
+      categories: {
+        where: { isArchived: false },
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, name: true, isSystem: true, linkedAccountId: true },
+      },
+    },
+  });
+}
+
 export async function createCategoryGroup(userId: string, budgetId: string, name: string) {
   await requireBudgetOwnership(budgetId, userId);
   const count = await prisma.categoryGroup.count({ where: { budgetId } });
@@ -327,18 +350,32 @@ export async function reorderCategories(
   updates: { categoryId: string; groupId: string; sortOrder: number }[],
 ) {
   await requireBudgetOwnership(budgetId, userId);
+  // Every categoryId AND target groupId must belong to this budget —
+  // `where: { id }` alone would happily reparent/reorder another budget's
+  // category if a caller passed a foreign id.
+  await Promise.all(updates.map((u) => Promise.all([requireCategoryInBudget(u.categoryId, budgetId), requireGroupInBudget(u.groupId, budgetId)])));
   await prisma.$transaction(
     updates.map((u) =>
-      prisma.category.update({ where: { id: u.categoryId }, data: { groupId: u.groupId, sortOrder: u.sortOrder } }),
+      prisma.category.updateMany({
+        where: { id: u.categoryId, budgetId },
+        data: { groupId: u.groupId, sortOrder: u.sortOrder },
+      }),
     ),
   );
 }
 
 export async function reorderCategoryGroups(userId: string, budgetId: string, updates: { groupId: string; sortOrder: number }[]) {
   await requireBudgetOwnership(budgetId, userId);
+  await Promise.all(updates.map((u) => requireGroupInBudget(u.groupId, budgetId)));
   await prisma.$transaction(
-    updates.map((u) => prisma.categoryGroup.update({ where: { id: u.groupId }, data: { sortOrder: u.sortOrder } })),
+    updates.map((u) => prisma.categoryGroup.updateMany({ where: { id: u.groupId, budgetId }, data: { sortOrder: u.sortOrder } })),
   );
+}
+
+async function requireGroupInBudget(groupId: string, budgetId: string) {
+  const group = await prisma.categoryGroup.findUnique({ where: { id: groupId } });
+  if (!group || group.budgetId !== budgetId) throw new NotFoundError("That category group couldn't be found.");
+  return group;
 }
 
 // ---------------------------------------------------------------------------
@@ -380,9 +417,24 @@ export async function ensureCreditCardPaymentCategory(
 
 /**
  * Called when a purchase is recorded against a credit card in a real
- * spending category. Moves min(spend, available) from that category into
- * the card's payment category for the same month, so the money you've
- * budgeted follows the debt it's now earmarked for.
+ * spending category.
+ *
+ * IMPORTANT: this is a single-sided credit to the card's payment category,
+ * NOT a "move money" pair off the spending category. The spending
+ * category's Available already drops by the purchase amount through the
+ * ordinary Activity effect (its TransactionSplit) — every transaction gets
+ * that regardless of payment method. If this function *also* subtracted
+ * the offset from the spending category, a purchase that exactly matched
+ * what was available would push that category into a phantom "overspent"
+ * state (available - activity - offset = negative) even though the user
+ * spent exactly what they'd budgeted. See FINANCIAL_ENGINE.md "Credit
+ * Cards" for the worked example and the accounting-identity proof that a
+ * single-sided credit still keeps books balanced: crediting the payment
+ * category by `offset` and nothing else on the spending side reduces
+ * Ready to Assign by the same `offset` (every Assignment row counts
+ * toward cumulative-assigned regardless of which category it's on), which
+ * is exactly the amount that's now earmarked for the card bill instead of
+ * being freely assignable.
  */
 export async function applyCreditCardOffset(
   tx: Prisma.TransactionClient,
@@ -403,36 +455,19 @@ export async function applyCreditCardOffset(
   if (offset <= 0) return;
 
   const budgetMonth = await getOrCreateBudgetMonth(tx, budgetId, normalized);
-  await getOrCreateCategoryMonth(tx, spendingCategoryId, budgetMonth.id);
   await getOrCreateCategoryMonth(tx, paymentCategoryId, budgetMonth.id);
 
-  const outAssignment = await tx.assignment.create({
-    data: {
-      categoryId: spendingCategoryId,
-      budgetMonthId: budgetMonth.id,
-      budgetId,
-      amountCents: -offset,
-      kind: "CC_OFFSET",
-      sourceTransactionId,
-    },
-  });
-  const inAssignment = await tx.assignment.create({
+  await tx.assignment.create({
     data: {
       categoryId: paymentCategoryId,
       budgetMonthId: budgetMonth.id,
       budgetId,
       amountCents: offset,
       kind: "CC_OFFSET",
-      pairedWithId: outAssignment.id,
       sourceTransactionId,
     },
   });
-  await tx.assignment.update({ where: { id: outAssignment.id }, data: { pairedWithId: inAssignment.id } });
 
-  await tx.categoryMonth.update({
-    where: { categoryId_budgetMonthId: { categoryId: spendingCategoryId, budgetMonthId: budgetMonth.id } },
-    data: { assignedCents: { decrement: offset } },
-  });
   await tx.categoryMonth.update({
     where: { categoryId_budgetMonthId: { categoryId: paymentCategoryId, budgetMonthId: budgetMonth.id } },
     data: { assignedCents: { increment: offset } },

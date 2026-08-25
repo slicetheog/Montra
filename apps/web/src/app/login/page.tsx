@@ -85,7 +85,7 @@ function LoginForm() {
         </Card>
         <p className="mt-4 text-center text-sm text-foreground-muted">
           New to Montra?{" "}
-          <Link href="/register" className="font-medium text-brand hover:underline">
+          <Link href="/register" className="font-medium text-brand underline underline-offset-2">
             Create a free account
           </Link>
         </p>

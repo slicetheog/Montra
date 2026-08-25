@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
-import { AdBanner } from "@/components/ads/ad-banner";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -140,15 +139,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
+        {/*
+          No shell-wide ad banner here on purpose: ads only appear on
+          specific low-distraction screens (Dashboard, Reports, Settings)
+          via their own <AdBanner>, per spec — the primary budgeting
+          screens (Budget, Accounts, transaction entry) stay ad-free so
+          the core workflow never competes for attention with a banner.
+        */}
         <main id="main-content" className="flex-1 pb-20 md:pb-0">
           {children}
         </main>
-
-        {!me?.adsRemoved && (
-          <div className="hidden md:block">
-            <AdBanner slot="app-footer" />
-          </div>
-        )}
       </div>
 
       {/* Mobile bottom nav */}

@@ -16,7 +16,7 @@ const PUBLIC_APP_PATHS = ["/login", "/register"];
  * route independently calls requireSessionUser()/getSessionUser(), which
  * validates the token against the database. That's the real gate.
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname.startsWith("/api/")) {
@@ -52,6 +52,7 @@ function isAppRoute(pathname: string): boolean {
     "/budget",
     "/accounts",
     "/goals",
+    "/recurring",
     "/debt",
     "/reports",
     "/net-worth",

@@ -33,7 +33,16 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      // The blocking script below adds/removes the `dark` class on this
+      // element BEFORE React hydrates (that's the whole point — it avoids
+      // a flash of the wrong theme), so the live DOM here intentionally
+      // diverges from what SSR rendered. Standard, documented tradeoff for
+      // this technique; see components/providers/theme-provider.tsx.
+      suppressHydrationWarning
+    >
       <head>
         {/* Blocking, pre-hydration theme script — prevents a flash of the wrong theme. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
