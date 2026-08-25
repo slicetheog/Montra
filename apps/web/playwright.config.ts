@@ -12,6 +12,14 @@ export default defineConfig({
   workers: 1,
   reporter: [["list"]],
   timeout: 30_000,
+  // A fresh `next dev` (Turbopack) compiles each route on first request —
+  // a route nobody has hit yet in this run can take noticeably longer to
+  // respond than the default 5s assertion timeout allows for, purely as a
+  // dev-mode JIT cost with no bearing on production (the app was also
+  // verified against `next start`, which has no such cost — see
+  // DEPLOYMENT.md). A little slack here avoids failing on that, not on a
+  // real bug.
+  expect: { timeout: 10_000 },
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3011",
     trace: "retain-on-failure",

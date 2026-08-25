@@ -7,8 +7,10 @@ import path from "node:path";
  * End-to-end happy path covering the spec's "brand-new user" checklist:
  * register, log in, create a budget, create an account, enter a starting
  * balance, add income, assign it to categories, add an expense, watch the
- * category balance change, move money, create a goal, import a CSV,
- * export data, log out, log back in, and confirm everything persisted.
+ * category balance change, move money, create a goal, create a recurring
+ * transaction, import a CSV, export data, view reports, view net worth,
+ * reconcile an account, log out, log back in, and confirm everything
+ * persisted.
  */
 test("full budgeting lifecycle", async ({ page }) => {
   const unique = Date.now();
@@ -70,6 +72,8 @@ test("full budgeting lifecycle", async ({ page }) => {
   const groceriesId = categoryGroups.flatMap((g: { categories: { id: string; name: string }[] }) => g.categories).find(
     (c: { name: string }) => c.name === "Groceries",
   ).id;
+  const accounts = await (await page.request.get(`/api/budgets/${budgetId}/accounts`)).json();
+  const checkingId = accounts.find((a: { name: string }) => a.name === "Checking").id;
 
   await page.goto("/budget");
   await expect(page.getByText("$1,500.00")).toBeVisible(); // Ready to Assign: 1000 + 500
@@ -120,6 +124,18 @@ test("full budgeting lifecycle", async ({ page }) => {
   await expect(page.getByText("Goal created.")).toBeVisible();
   await expect(page.getByText("Emergency Fund")).toBeVisible();
 
+  // 12b. Create a recurring transaction
+  await page.goto("/recurring");
+  await page.getByRole("button", { name: "New recurring transaction" }).click();
+  const recurDialog = page.getByRole("dialog", { name: "New recurring transaction" });
+  await recurDialog.getByRole("combobox").nth(1).click(); // Account (Type is nth(0))
+  await page.getByRole("option", { name: "Checking" }).click();
+  await recurDialog.getByLabel("Payee").fill("Netflix");
+  await recurDialog.getByLabel("Amount").fill("15.49");
+  await recurDialog.getByRole("button", { name: "Create" }).click();
+  await expect(page.getByText("Recurring transaction created.")).toBeVisible();
+  await expect(page.getByText("Netflix")).toBeVisible();
+
   // 13. Import a CSV
   const csvPath = path.join(os.tmpdir(), `e2e-import-${unique}.csv`);
   fs.writeFileSync(csvPath, "Date,Payee,Amount,Memo\n2026-08-01,Gas Station,-40.00,Fill up\n");
@@ -140,6 +156,31 @@ test("full budgeting lifecycle", async ({ page }) => {
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/montra-transactions-.*\.csv/);
 
+  // 14b. View reports
+  await page.goto("/reports");
+  await expect(page.getByRole("heading", { name: "Reports" })).toBeVisible();
+  await expect(page.getByText("Spending by category")).toBeVisible();
+  await expect(page.getByText("Groceries")).toBeVisible(); // the $45 Whole Foods purchase shows up here
+
+  // 14c. View net worth
+  await page.goto("/net-worth");
+  await expect(page.getByRole("heading", { name: "Net Worth" })).toBeVisible();
+  // "Assets" also appears in the page subtitle and a stat-card label —
+  // target the section heading specifically.
+  await expect(page.getByRole("heading", { name: "Assets" })).toBeVisible();
+
+  // 14d. Reconcile the Checking account against its own current cleared
+  // balance (no adjustment expected) — exercises the full reconcile flow
+  // without perturbing the persistence checks below.
+  const accountBefore = await (await page.request.get(`/api/budgets/${budgetId}/accounts/${checkingId}`)).json();
+  const clearedDollars = (accountBefore.balances.clearedCents / 100).toFixed(2);
+  await page.goto(`/accounts/${checkingId}`);
+  await page.getByRole("button", { name: "Reconcile" }).click();
+  const reconcileDialog = page.getByRole("dialog", { name: "Reconcile account" });
+  await reconcileDialog.getByLabel("Statement ending balance").fill(clearedDollars);
+  await reconcileDialog.getByRole("button", { name: "Reconcile" }).click();
+  await expect(page.getByText("Account reconciled.")).toBeVisible();
+
   // 15. Log out
   await page.getByRole("button", { name: "Log out" }).click();
   await page.waitForURL("**/login", { waitUntil: "commit" });
@@ -153,6 +194,8 @@ test("full budgeting lifecycle", async ({ page }) => {
   // 17. Verify everything persisted
   await page.goto("/goals");
   await expect(page.getByText("Emergency Fund")).toBeVisible();
+  await page.goto("/recurring");
+  await expect(page.getByText("Netflix")).toBeVisible();
   await page.goto("/accounts");
   await page.getByRole("link", { name: "Checking" }).click();
   // The transaction list renders both a mobile-card and a desktop-table

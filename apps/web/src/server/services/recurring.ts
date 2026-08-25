@@ -6,6 +6,7 @@ import { requireBudgetOwnership } from "@/server/services/budgets";
 import { requireAccountInBudget } from "@/server/services/accounts";
 import { requireCategoryInBudget } from "@/server/services/budget";
 import { createTransaction } from "@/server/services/transactions";
+import { findOrCreatePayee } from "@/server/services/payees";
 import { logAudit } from "@/server/services/audit";
 
 export interface CreateRecurringInput {
@@ -30,16 +31,23 @@ export async function createRecurring(userId: string, budgetId: string, input: C
   await requireAccountInBudget(input.accountId, budgetId);
   if (input.type === "TRANSFER") throw new ValidationError("Recurring transfers aren't supported yet — create the transaction manually each time.");
   if (input.categoryId) await requireCategoryInBudget(input.categoryId, budgetId);
-  if (input.payeeId) {
-    const payee = await prisma.payee.findUnique({ where: { id: input.payeeId } });
+  let payeeId = input.payeeId;
+  if (payeeId) {
+    const payee = await prisma.payee.findUnique({ where: { id: payeeId } });
     if (!payee || payee.budgetId !== budgetId) throw new NotFoundError("That payee couldn't be found.");
+  } else if (input.payeeName && input.payeeName.trim()) {
+    // The form only offers free-text payee entry (no existing-payee
+    // picker), same as the transaction form — find-or-create by name
+    // rather than silently dropping it (see the same pattern in
+    // services/transactions.ts).
+    payeeId = (await findOrCreatePayee(prisma, budgetId, input.payeeName)).id;
   }
 
   const recurring = await prisma.recurringTransaction.create({
     data: {
       budgetId,
       accountId: input.accountId,
-      payeeId: input.payeeId,
+      payeeId,
       categoryId: input.categoryId,
       amountCents: input.amountCents,
       memo: input.memo,
