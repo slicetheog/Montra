@@ -350,18 +350,32 @@ export async function reorderCategories(
   updates: { categoryId: string; groupId: string; sortOrder: number }[],
 ) {
   await requireBudgetOwnership(budgetId, userId);
+  // Every categoryId AND target groupId must belong to this budget —
+  // `where: { id }` alone would happily reparent/reorder another budget's
+  // category if a caller passed a foreign id.
+  await Promise.all(updates.map((u) => Promise.all([requireCategoryInBudget(u.categoryId, budgetId), requireGroupInBudget(u.groupId, budgetId)])));
   await prisma.$transaction(
     updates.map((u) =>
-      prisma.category.update({ where: { id: u.categoryId }, data: { groupId: u.groupId, sortOrder: u.sortOrder } }),
+      prisma.category.updateMany({
+        where: { id: u.categoryId, budgetId },
+        data: { groupId: u.groupId, sortOrder: u.sortOrder },
+      }),
     ),
   );
 }
 
 export async function reorderCategoryGroups(userId: string, budgetId: string, updates: { groupId: string; sortOrder: number }[]) {
   await requireBudgetOwnership(budgetId, userId);
+  await Promise.all(updates.map((u) => requireGroupInBudget(u.groupId, budgetId)));
   await prisma.$transaction(
-    updates.map((u) => prisma.categoryGroup.update({ where: { id: u.groupId }, data: { sortOrder: u.sortOrder } })),
+    updates.map((u) => prisma.categoryGroup.updateMany({ where: { id: u.groupId, budgetId }, data: { sortOrder: u.sortOrder } })),
   );
+}
+
+async function requireGroupInBudget(groupId: string, budgetId: string) {
+  const group = await prisma.categoryGroup.findUnique({ where: { id: groupId } });
+  if (!group || group.budgetId !== budgetId) throw new NotFoundError("That category group couldn't be found.");
+  return group;
 }
 
 // ---------------------------------------------------------------------------
