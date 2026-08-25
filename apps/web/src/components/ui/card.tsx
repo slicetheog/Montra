@@ -15,7 +15,10 @@ export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDiv
 }
 
 export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
-  return <h3 className={cn("text-base font-semibold text-foreground", className)} {...props} />;
+  // h2: every page in this app has exactly one h1 (the page title) with
+  // Cards as its direct sections, so h2 is the correct next heading level
+  // — going straight to h3 skips a level and fails WCAG heading-order.
+  return <h2 className={cn("text-base font-semibold text-foreground", className)} {...props} />;
 }
 
 export function CardDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {

@@ -37,11 +37,14 @@
   --accent: #b3781c;
   --accent-tint: #fbf0dd;
 
-  --positive: #147d5f;
+  /* Darkened from the initial picks: both landed just under (positive) or
+     clearly under (caution) the 4.5:1 WCAG AA text-contrast minimum
+     against their own -tint background, caught by an axe-core audit. */
+  --positive: #0e6b4f;
   --positive-tint: #e3f5ee;
   --negative: #b3261e;
   --negative-tint: #fbe9e7;
-  --caution: #a8641b;
+  --caution: #8a5316;
   --caution-tint: #fbf0dd;
 
   --focus-ring: #0f5f57;

@@ -65,7 +65,11 @@ export default function GoalsPage() {
 
               {goal.progress && (
                 <>
-                  <Progress value={goal.progress.percentComplete} className="mb-1.5" />
+                  <Progress
+                    value={goal.progress.percentComplete}
+                    className="mb-1.5"
+                    aria-label={`${goal.name} progress`}
+                  />
                   <div className="flex items-center justify-between text-xs text-foreground-muted">
                     <span>{formatCents(goal.currentAmountCents)} saved</span>
                     <span>{Math.round(goal.progress.percentComplete)}%</span>

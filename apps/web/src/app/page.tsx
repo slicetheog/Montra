@@ -72,7 +72,7 @@ export default function LandingPage() {
             <Card key={title}>
               <CardContent className="pt-5">
                 <Icon className="size-5 text-brand" />
-                <h3 className="mt-3 font-semibold text-foreground">{title}</h3>
+                <h2 className="mt-3 font-semibold text-foreground">{title}</h2>
                 <p className="mt-1 text-sm text-foreground-muted">{body}</p>
               </CardContent>
             </Card>

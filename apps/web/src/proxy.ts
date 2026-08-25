@@ -52,6 +52,7 @@ function isAppRoute(pathname: string): boolean {
     "/budget",
     "/accounts",
     "/goals",
+    "/recurring",
     "/debt",
     "/reports",
     "/net-worth",

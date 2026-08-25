@@ -69,9 +69,9 @@ export default function DashboardPage() {
                   <span>Budget progress</span>
                   <span>{Math.round(assignedPercent)}% assigned</span>
                 </div>
-                <Progress value={assignedPercent} />
+                <Progress value={assignedPercent} aria-label="Budget progress" />
               </div>
-              <Link href="/budget" className="mt-4 inline-block text-sm font-medium text-brand hover:underline">
+              <Link href="/budget" className="mt-4 inline-block text-sm font-medium text-brand underline underline-offset-2">
                 Go to Budget →
               </Link>
             </CardContent>
@@ -85,7 +85,7 @@ export default function DashboardPage() {
               {data.goals.length === 0 ? (
                 <p className="text-sm text-foreground-muted">
                   No goals yet.{" "}
-                  <Link href="/goals" className="text-brand hover:underline">
+                  <Link href="/goals" className="text-brand underline underline-offset-2">
                     Create one
                   </Link>
                   .
@@ -99,7 +99,7 @@ export default function DashboardPage() {
                       </span>
                       <span className="text-foreground-muted">{goal.progress ? `${Math.round(goal.progress.percentComplete)}%` : "—"}</span>
                     </div>
-                    <Progress value={goal.progress?.percentComplete ?? 0} />
+                    <Progress value={goal.progress?.percentComplete ?? 0} aria-label={`${goal.name} progress`} />
                   </div>
                 ))
               )}
@@ -132,7 +132,7 @@ export default function DashboardPage() {
                   ))}
                 </ul>
               )}
-              <Link href="/accounts" className="mt-3 inline-block text-sm font-medium text-brand hover:underline">
+              <Link href="/accounts" className="mt-3 inline-block text-sm font-medium text-brand underline underline-offset-2">
                 View all transactions →
               </Link>
             </CardContent>
@@ -158,7 +158,7 @@ export default function DashboardPage() {
                   ))}
                 </ul>
               )}
-              <Link href="/goals" className="mt-3 inline-block text-sm font-medium text-brand hover:underline">
+              <Link href="/recurring" className="mt-3 inline-block text-sm font-medium text-brand underline underline-offset-2">
                 Manage recurring transactions →
               </Link>
             </CardContent>
