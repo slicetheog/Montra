@@ -1,0 +1,610 @@
+// Montra database schema.
+//
+// Design principles (see /FINANCIAL_ENGINE.md for the full write-up):
+// 1. Every dollar amount is an integer number of cents. Never a float.
+// 2. Balances are DERIVED, not stored redundantly. Account balances,
+//    category "activity"/"available", and "available to budget" are all
+//    computed from the transaction/assignment ledgers by the domain engine
+//    (packages/domain), not cached columns here. The one exception is
+//    Entitlement, which is a genuine piece of state, not a computation.
+// 3. Money movement between budget categories is an append-only ledger
+//    (Assignment), not a mutable counter, so every change is auditable.
+// 4. Account starting balances are ordinary Transactions (payee
+//    "Starting Balance"), so an account's balance always has exactly one
+//    source of truth: "sum of its transactions."
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identity & account security
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  settings      UserSettings?
+  entitlement   Entitlement?
+  budgets       Budget[]
+  sessions      Session[]
+  purchases     Purchase[]
+  auditLogs     AuditLog[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+/// Opaque bearer session tokens. The cookie holds the raw token; only its
+/// SHA-256 hash is persisted, so a database read never yields a usable
+/// session (see apps/web/src/server/auth/session.ts).
+model Session {
+  id        String   @id // sha256(token) hex
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userAgent String?
+  ipHash    String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+enum ThemePreference {
+  LIGHT
+  DARK
+  SYSTEM
+}
+
+model UserSettings {
+  id                    String          @id @default(cuid())
+  userId                String          @unique
+  user                  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currency              String          @default("USD")
+  dateFormat            String          @default("MM/DD/YYYY")
+  firstDayOfMonth       Int             @default(1)
+  theme                 ThemePreference @default(SYSTEM)
+  notificationsEnabled  Boolean         @default(true)
+  onboardingCompletedAt DateTime?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  @@map("user_settings")
+}
+
+// ---------------------------------------------------------------------------
+// Monetization: ads + one-time "Remove Ads" entitlement (see PHASE 10)
+// ---------------------------------------------------------------------------
+
+/// Server-side source of truth for ad-free status. Never trust a client
+/// flag for this — the UI reads this via an authenticated API call.
+model Entitlement {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adsRemoved Boolean  @default(false)
+  updatedAt  DateTime @updatedAt
+
+  @@map("entitlements")
+}
+
+enum PaymentProvider {
+  PLACEHOLDER // dev-only simulated provider
+  STRIPE
+  APPLE_IAP
+  GOOGLE_PLAY
+}
+
+enum PurchaseStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+model Purchase {
+  id          String          @id @default(cuid())
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider    PaymentProvider
+  providerRef String? // external charge/transaction id
+  product     String          @default("REMOVE_ADS")
+  amountCents Int             @default(499)
+  currency    String          @default("USD")
+  status      PurchaseStatus  @default(PENDING)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([userId])
+  @@map("purchases")
+}
+
+// ---------------------------------------------------------------------------
+// Budgets
+// ---------------------------------------------------------------------------
+
+model Budget {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  currency   String   @default("USD")
+  isArchived Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  categoryGroups CategoryGroup[]
+  categories     Category[]
+  accounts       Account[]
+  months         BudgetMonth[]
+  payees         Payee[]
+  transactions   Transaction[]
+  goals          Goal[]
+  recurring      RecurringTransaction[]
+  imports        Import[]
+  assignments    Assignment[]
+
+  @@index([userId])
+  @@map("budgets")
+}
+
+/// One row per calendar month a budget has ever touched. Created lazily.
+model BudgetMonth {
+  id       String   @id @default(cuid())
+  budgetId String
+  budget   Budget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  month    DateTime // normalized to the 1st of the month, UTC midnight
+
+  categoryMonths CategoryMonth[]
+  assignments    Assignment[]
+
+  @@unique([budgetId, month])
+  @@index([budgetId])
+  @@map("budget_months")
+}
+
+model CategoryGroup {
+  id         String   @id @default(cuid())
+  budgetId   String
+  budget     Budget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  name       String
+  sortOrder  Int      @default(0)
+  isSystem   Boolean  @default(false) // e.g. auto-created "Credit Card Payments"
+  isArchived Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  categories Category[]
+
+  @@index([budgetId])
+  @@map("category_groups")
+}
+
+model Category {
+  id              String        @id @default(cuid())
+  budgetId        String
+  budget          Budget        @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  groupId         String
+  group           CategoryGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  name            String
+  sortOrder       Int           @default(0)
+  isSystem        Boolean       @default(false) // system CC-payment categories are protected
+  isArchived      Boolean       @default(false)
+  /// Set only on the auto-generated "Payment: <Card>" category for a credit card account.
+  linkedAccountId String?
+  linkedAccount   Account?      @relation("CategoryLinkedAccount", fields: [linkedAccountId], references: [id])
+  createdAt       DateTime      @default(now())
+
+  categoryMonths CategoryMonth[]
+  assignments    Assignment[]
+  splits         TransactionSplit[]
+  goal           Goal?
+  recurring      RecurringTransaction[]
+  payeeDefaults  Payee[]                @relation("PayeeDefaultCategory")
+
+  @@index([budgetId])
+  @@index([groupId])
+  @@map("categories")
+}
+
+/// Per-category-per-month state. `assignedCents` is a *cached, recomputable*
+/// sum of this category's Assignment rows for this month — kept as a column
+/// (rather than summed on every read) purely for query performance, and
+/// always written inside the same DB transaction as the Assignment rows
+/// that justify it. Activity and Available are never stored — see
+/// packages/domain/src/budget-engine.ts.
+model CategoryMonth {
+  id            String      @id @default(cuid())
+  categoryId    String
+  category      Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  budgetMonthId String
+  budgetMonth   BudgetMonth @relation(fields: [budgetMonthId], references: [id], onDelete: Cascade)
+  assignedCents Int         @default(0)
+
+  @@unique([categoryId, budgetMonthId])
+  @@index([budgetMonthId])
+  @@map("category_months")
+}
+
+enum AssignmentKind {
+  ASSIGN // user directly assigned money to a category
+  MOVE_FROM // money moved out to another category
+  MOVE_TO // money moved in from another category
+  CC_OFFSET // automatic credit-card spend offset (see FINANCIAL_ENGINE.md)
+  ROLLOVER // automatic negative-rollover correction, if ever needed
+}
+
+/// Append-only ledger of every change to a category's assigned amount.
+/// CategoryMonth.assignedCents is always SUM(Assignment.amountCents) for
+/// that (categoryId, budgetMonthId) pair.
+model Assignment {
+  id                  String         @id @default(cuid())
+  categoryId          String
+  category            Category       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  budgetMonthId       String
+  budgetMonth         BudgetMonth    @relation(fields: [budgetMonthId], references: [id], onDelete: Cascade)
+  budgetId            String
+  budget              Budget         @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  amountCents         Int // signed delta
+  kind                AssignmentKind
+  memo                String?
+  /// Links the two legs of a "move money" operation or a CC offset pair.
+  pairedWithId        String?
+  /// Set only for CC_OFFSET rows: the purchase/refund transaction that
+  /// caused this automatic move, so deleting/editing that transaction can
+  /// precisely reverse it instead of leaving orphaned envelope math.
+  sourceTransactionId String?
+  sourceTransaction   Transaction?   @relation(fields: [sourceTransactionId], references: [id], onDelete: Cascade)
+  createdAt           DateTime       @default(now())
+
+  @@index([categoryId, budgetMonthId])
+  @@index([budgetId])
+  @@index([sourceTransactionId])
+  @@map("assignments")
+}
+
+// ---------------------------------------------------------------------------
+// Accounts
+// ---------------------------------------------------------------------------
+
+enum AccountType {
+  CHECKING
+  SAVINGS
+  CREDIT_CARD
+  CASH
+  INVESTMENT
+  LOAN
+  OTHER_ASSET
+  OTHER_LIABILITY
+}
+
+model Account {
+  id          String      @id @default(cuid())
+  budgetId    String
+  budget      Budget      @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  name        String
+  type        AccountType
+  institution String?
+  notes       String?
+  isClosed    Boolean     @default(false)
+  /// On-budget accounts feed "Available to Budget"; off-budget (tracking)
+  /// accounts are included in net worth only.
+  onBudget    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  transactions         Transaction[]          @relation("AccountTransactions")
+  transferTransactions Transaction[]          @relation("TransferAccount")
+  debt                 Debt?
+  reconciliations      Reconciliation[]
+  recurring            RecurringTransaction[]
+  imports              Import[]
+  linkedCategories     Category[]             @relation("CategoryLinkedAccount")
+
+  @@index([budgetId])
+  @@map("accounts")
+}
+
+model Debt {
+  id                   String   @id @default(cuid())
+  accountId            String   @unique
+  account              Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  originalBalanceCents Int
+  interestRateBps      Int      @default(0) // basis points, e.g. 1999 = 19.99%
+  minimumPaymentCents  Int      @default(0)
+  dueDayOfMonth        Int?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("debts")
+}
+
+// ---------------------------------------------------------------------------
+// Payees
+// ---------------------------------------------------------------------------
+
+model Payee {
+  id                String    @id @default(cuid())
+  budgetId          String
+  budget            Budget    @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  name              String
+  defaultCategoryId String?
+  defaultCategory   Category? @relation("PayeeDefaultCategory", fields: [defaultCategoryId], references: [id])
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  transactions Transaction[]
+  recurring    RecurringTransaction[]
+  importRows   ImportTransaction[]
+
+  @@unique([budgetId, name])
+  @@index([budgetId])
+  @@map("payees")
+}
+
+// ---------------------------------------------------------------------------
+// Transactions
+// ---------------------------------------------------------------------------
+
+enum TransactionType {
+  EXPENSE
+  INCOME
+  TRANSFER
+  REFUND
+  CREDIT_CARD_PAYMENT
+}
+
+enum ClearedStatus {
+  UNCLEARED
+  CLEARED
+  RECONCILED
+}
+
+model Transaction {
+  id          String          @id @default(cuid())
+  budgetId    String
+  budget      Budget          @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  accountId   String
+  account     Account         @relation("AccountTransactions", fields: [accountId], references: [id], onDelete: Cascade)
+  payeeId     String?
+  payee       Payee?          @relation(fields: [payeeId], references: [id])
+  date        DateTime
+  amountCents Int // signed: outflow negative, inflow positive
+  memo        String?
+  type        TransactionType
+  cleared     ClearedStatus   @default(UNCLEARED)
+  isSplit     Boolean         @default(false)
+
+  /// For TRANSFER transactions: the other account, and the linked mirror row.
+  transferAccountId String?
+  transferAccount   Account?     @relation("TransferAccount", fields: [transferAccountId], references: [id])
+  transferPeerId    String?      @unique
+  transferPeer      Transaction? @relation("TransferPeer", fields: [transferPeerId], references: [id])
+  transferPeerOf    Transaction? @relation("TransferPeer")
+
+  importRowId String?            @unique
+  importRow   ImportTransaction? @relation(fields: [importRowId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  splits                TransactionSplit[]
+  reconciliationAdjusts Reconciliation[]
+  ccOffsetAssignments   Assignment[]
+
+  @@index([budgetId, date])
+  @@index([accountId, date])
+  @@index([payeeId])
+  @@map("transactions")
+}
+
+/// Every transaction has >=1 split. Non-split transactions simply have one
+/// split whose amount equals the transaction total — this keeps the engine
+/// (and category Activity queries) working off one code path.
+model TransactionSplit {
+  id            String      @id @default(cuid())
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  categoryId    String?
+  category      Category?   @relation(fields: [categoryId], references: [id])
+  amountCents   Int
+  memo          String?
+
+  @@index([transactionId])
+  @@index([categoryId])
+  @@map("transaction_splits")
+}
+
+// ---------------------------------------------------------------------------
+// Recurring transactions
+// ---------------------------------------------------------------------------
+
+enum RecurrenceFrequency {
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  EVERY_N_MONTHS
+  YEARLY
+  CUSTOM
+}
+
+model RecurringTransaction {
+  id                 String              @id @default(cuid())
+  budgetId           String
+  budget             Budget              @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  accountId          String
+  account            Account             @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  payeeId            String?
+  payee              Payee?              @relation(fields: [payeeId], references: [id])
+  categoryId         String?
+  category           Category?           @relation(fields: [categoryId], references: [id])
+  amountCents        Int
+  memo               String?
+  type               TransactionType
+  frequency          RecurrenceFrequency
+  intervalCount      Int                 @default(1) // e.g. every N months/weeks
+  startDate          DateTime
+  endDate            DateTime?
+  occurrencesLimit   Int?
+  occurrencesCreated Int                 @default(0)
+  nextOccurrenceDate DateTime
+  reminderDaysBefore Int?
+  autoCreate         Boolean             @default(false)
+  isActive           Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@index([budgetId])
+  @@index([nextOccurrenceDate])
+  @@map("recurring_transactions")
+}
+
+// ---------------------------------------------------------------------------
+// Goals
+// ---------------------------------------------------------------------------
+
+enum GoalType {
+  TARGET_BALANCE
+  MONTHLY_CONTRIBUTION
+  TARGET_DATE
+  DEBT_PAYOFF
+}
+
+model Goal {
+  id                       String    @id @default(cuid())
+  budgetId                 String
+  budget                   Budget    @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  categoryId               String?   @unique
+  category                 Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name                     String
+  type                     GoalType
+  targetAmountCents        Int?
+  targetDate               DateTime?
+  monthlyContributionCents Int?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  @@index([budgetId])
+  @@map("goals")
+}
+
+// ---------------------------------------------------------------------------
+// Reconciliation
+// ---------------------------------------------------------------------------
+
+model Reconciliation {
+  id                      String       @id @default(cuid())
+  accountId               String
+  account                 Account      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  statementDate           DateTime
+  statementBalanceCents   Int
+  previousBalanceCents    Int
+  adjustmentTransactionId String?      @unique
+  adjustmentTransaction   Transaction? @relation(fields: [adjustmentTransactionId], references: [id])
+  createdAt               DateTime     @default(now())
+
+  @@index([accountId])
+  @@map("reconciliations")
+}
+
+// ---------------------------------------------------------------------------
+// CSV import
+// ---------------------------------------------------------------------------
+
+enum ImportStatus {
+  PENDING
+  COMMITTED
+  CANCELLED
+}
+
+model Import {
+  id          String       @id @default(cuid())
+  budgetId    String
+  budget      Budget       @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  accountId   String
+  account     Account      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  filename    String
+  status      ImportStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+  committedAt DateTime?
+
+  rows ImportTransaction[]
+
+  @@index([budgetId])
+  @@map("imports")
+}
+
+model ImportTransaction {
+  id                       String   @id @default(cuid())
+  importId                 String
+  import                   Import   @relation(fields: [importId], references: [id], onDelete: Cascade)
+  rawDate                  DateTime
+  rawPayeeText             String
+  rawAmountCents           Int
+  rawMemo                  String?
+  matchedPayeeId           String?
+  matchedPayee             Payee?   @relation(fields: [matchedPayeeId], references: [id])
+  matchedCategoryId        String?
+  isDuplicate              Boolean  @default(false)
+  duplicateOfTransactionId String?
+  willImport               Boolean  @default(true)
+  createdAt                DateTime @default(now())
+
+  createdTransaction Transaction?
+
+  @@index([importId])
+  @@map("import_transactions")
+}
+
+// ---------------------------------------------------------------------------
+// Notifications & audit
+// ---------------------------------------------------------------------------
+
+enum NotificationType {
+  UPCOMING_BILL
+  OVERSPENDING
+  GOAL_MILESTONE
+  RECURRING_TRANSACTION
+  RECONCILIATION_REMINDER
+}
+
+model Notification {
+  id                String           @id @default(cuid())
+  userId            String
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              NotificationType
+  title             String
+  body              String
+  isRead            Boolean          @default(false)
+  relatedEntityType String?
+  relatedEntityId   String?
+  createdAt         DateTime         @default(now())
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action     String // e.g. "transaction.created"
+  entityType String
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("audit_logs")
+}

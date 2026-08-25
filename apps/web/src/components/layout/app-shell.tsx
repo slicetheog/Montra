@@ -1,0 +1,205 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { LogOut, Menu, Wallet, ChevronDown } from "lucide-react";
+import { useState } from "react";
+import { NAV_ITEMS } from "@/components/layout/nav-items";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { cn } from "@/lib/utils";
+import { api } from "@/lib/api-client";
+import { useMe } from "@/hooks/use-me";
+import { useCurrentBudget } from "@/hooks/use-current-budget";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
+import { AdBanner } from "@/components/ads/ad-banner";
+
+export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { data: me } = useMe();
+  const { budget, budgets, setBudgetId } = useCurrentBudget();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  async function logout() {
+    await api.post("/api/auth/logout");
+    queryClient.clear();
+    router.push("/login");
+  }
+
+  const mobileItems = NAV_ITEMS.filter((item) => item.mobile);
+
+  return (
+    <div className="flex min-h-screen flex-col md:flex-row">
+      {/* Desktop / tablet sidebar */}
+      <aside className="hidden shrink-0 flex-col border-r border-border bg-surface md:flex md:w-16 lg:w-64">
+        <div className="flex h-16 items-center gap-2 px-4 lg:px-5">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand text-brand-foreground">
+            <Wallet className="size-4.5" />
+          </div>
+          <span className="hidden text-lg font-semibold lg:inline">Montra</span>
+        </div>
+        <nav className="flex flex-1 flex-col gap-1 px-2 py-2" aria-label="Main navigation">
+          {NAV_ITEMS.map((item) => {
+            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                title={item.label}
+                className={cn(
+                  "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
+                  "lg:justify-start justify-center",
+                  active
+                    ? "bg-brand-tint text-brand-strong"
+                    : "text-foreground-muted hover:bg-surface-muted hover:text-foreground",
+                )}
+              >
+                <Icon className="size-5 shrink-0" />
+                <span className="hidden lg:inline">{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+        <div className="border-t border-border p-3">
+          <button
+            onClick={logout}
+            className="flex w-full items-center justify-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-foreground-muted hover:bg-surface-muted hover:text-foreground lg:justify-start"
+          >
+            <LogOut className="size-5" />
+            <span className="hidden lg:inline">Log out</span>
+          </button>
+        </div>
+      </aside>
+
+      <div className="flex min-h-screen flex-1 flex-col">
+        {/* Top bar */}
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-border bg-surface/95 px-4 backdrop-blur">
+          <div className="flex items-center gap-2 md:hidden">
+            <button
+              onClick={() => setDrawerOpen(true)}
+              className="rounded-md p-2 text-foreground-muted hover:bg-surface-muted"
+              aria-label="Open menu"
+            >
+              <Menu className="size-5" />
+            </button>
+          </div>
+
+          {budgets.length > 0 ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">
+                {budget?.name ?? "Choose a budget"}
+                <ChevronDown className="size-4 text-foreground-muted" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuLabel>Your budgets</DropdownMenuLabel>
+                {budgets.map((b) => (
+                  <DropdownMenuItem key={b.id} onSelect={() => setBudgetId(b.id)}>
+                    {b.name}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/settings?tab=budgets">Manage budgets</Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <span />
+          )}
+
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <DropdownMenu>
+              <DropdownMenuTrigger className="flex size-8 items-center justify-center rounded-full bg-brand-tint text-sm font-semibold text-brand-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">
+                {me?.user?.name?.[0]?.toUpperCase() ?? "?"}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>{me?.user?.name}</DropdownMenuLabel>
+                <DropdownMenuItem asChild>
+                  <Link href="/settings">Settings</Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={logout} className="text-negative">
+                  Log out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </header>
+
+        <main id="main-content" className="flex-1 pb-20 md:pb-0">
+          {children}
+        </main>
+
+        {!me?.adsRemoved && (
+          <div className="hidden md:block">
+            <AdBanner slot="app-footer" />
+          </div>
+        )}
+      </div>
+
+      {/* Mobile bottom nav */}
+      <nav
+        className="fixed inset-x-0 bottom-0 z-30 flex border-t border-border bg-surface md:hidden"
+        aria-label="Main navigation"
+      >
+        {mobileItems.map((item) => {
+          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium",
+                active ? "text-brand" : "text-foreground-muted",
+              )}
+            >
+              <Icon className="size-5" />
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Mobile drawer for full nav */}
+      <Dialog open={drawerOpen} onOpenChange={setDrawerOpen}>
+        <DialogContent className="left-0 top-0 h-full max-h-full w-64 translate-x-0 translate-y-0 rounded-none border-r border-l-0 border-t-0 border-b-0">
+          <VisuallyHidden>
+            <DialogTitle>Navigation</DialogTitle>
+          </VisuallyHidden>
+          <nav className="flex flex-col gap-1" aria-label="Main navigation">
+            {NAV_ITEMS.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setDrawerOpen(false)}
+                  className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-foreground hover:bg-surface-muted"
+                >
+                  <Icon className="size-5" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
