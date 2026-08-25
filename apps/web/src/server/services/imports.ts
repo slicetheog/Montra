@@ -110,6 +110,14 @@ export async function updateImportRow(
   const row = await prisma.importTransaction.findUnique({ where: { id: rowId } });
   if (!row || row.importId !== importId) throw new NotFoundError("That row couldn't be found.");
 
+  // matchedCategoryId has no DB-level FK to guard this, so check it here:
+  // otherwise a caller could point an import row at a category from a
+  // different budget, and committing would inject a split into it.
+  if (patch.matchedCategoryId) {
+    const category = await prisma.category.findUnique({ where: { id: patch.matchedCategoryId } });
+    if (!category || category.budgetId !== budgetId) throw new NotFoundError("That category couldn't be found.");
+  }
+
   return prisma.importTransaction.update({ where: { id: rowId }, data: patch });
 }
 

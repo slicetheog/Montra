@@ -4,6 +4,7 @@ import { computeNextOccurrence, type RecurrenceFrequency } from "@montra/domain"
 import { NotFoundError, ValidationError } from "@/server/api-helpers";
 import { requireBudgetOwnership } from "@/server/services/budgets";
 import { requireAccountInBudget } from "@/server/services/accounts";
+import { requireCategoryInBudget } from "@/server/services/budget";
 import { createTransaction } from "@/server/services/transactions";
 import { logAudit } from "@/server/services/audit";
 
@@ -28,6 +29,11 @@ export async function createRecurring(userId: string, budgetId: string, input: C
   await requireBudgetOwnership(budgetId, userId);
   await requireAccountInBudget(input.accountId, budgetId);
   if (input.type === "TRANSFER") throw new ValidationError("Recurring transfers aren't supported yet — create the transaction manually each time.");
+  if (input.categoryId) await requireCategoryInBudget(input.categoryId, budgetId);
+  if (input.payeeId) {
+    const payee = await prisma.payee.findUnique({ where: { id: input.payeeId } });
+    if (!payee || payee.budgetId !== budgetId) throw new NotFoundError("That payee couldn't be found.");
+  }
 
   const recurring = await prisma.recurringTransaction.create({
     data: {

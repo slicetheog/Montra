@@ -6,7 +6,7 @@ import { ConflictError, NotFoundError, ValidationError } from "@/server/api-help
 import { requireBudgetOwnership } from "@/server/services/budgets";
 import { requireAccountInBudget } from "@/server/services/accounts";
 import { findOrCreatePayee } from "@/server/services/payees";
-import { applyCreditCardOffset, reverseCreditCardOffsetsForTransaction } from "@/server/services/budget";
+import { applyCreditCardOffset, requireCategoryInBudget, reverseCreditCardOffsetsForTransaction } from "@/server/services/budget";
 import { logAudit } from "@/server/services/audit";
 
 export interface SplitInput {
@@ -44,6 +44,18 @@ async function resolvePayeeId(
     return payee.id;
   }
   return null;
+}
+
+/**
+ * TransactionSplit.categoryId has no composite (categoryId, budgetId) FK
+ * to lean on, so every caller-supplied split must be checked explicitly —
+ * otherwise a transaction in this budget could inject activity into a
+ * category belonging to a different budget (or a different user
+ * entirely), corrupting its Available/Activity totals.
+ */
+async function requireSplitCategoriesInBudget(budgetId: string, splits: { categoryId: string | null }[]) {
+  const categoryIds = [...new Set(splits.map((s) => s.categoryId).filter((id): id is string => Boolean(id)))];
+  await Promise.all(categoryIds.map((id) => requireCategoryInBudget(id, budgetId)));
 }
 
 /** Applies the credit-card auto-offset for every real-category outflow split on a CC account transaction. */
@@ -150,6 +162,7 @@ export async function createTransaction(userId: string, budgetId: string, input:
 
   const splits = input.splits ?? [];
   assertSplitsSumToTotal(cents(input.amountCents), splits.map((s) => cents(s.amountCents)));
+  await requireSplitCategoriesInBudget(budgetId, splits);
 
   const transaction = await prisma.$transaction(async (tx) => {
     const payeeId = await resolvePayeeId(tx, budgetId, input.payeeId, input.payeeName);
@@ -222,6 +235,13 @@ export async function updateTransaction(
   await requireBudgetOwnership(budgetId, userId);
   const existing = await requireTransactionInBudget(transactionId, budgetId);
 
+  // Never trust a client-supplied accountId without checking it's in this
+  // same budget — otherwise a transaction could be repointed onto another
+  // budget's (or another user's) account and corrupt its balance.
+  if (patch.accountId !== undefined) {
+    await requireAccountInBudget(patch.accountId, budgetId);
+  }
+
   if (existing.cleared === "RECONCILED" && patch.cleared !== "CLEARED" && patch.cleared !== "UNCLEARED") {
     // Allow un-reconciling (a deliberate un-lock) but block silent edits to a reconciled row's numbers.
     if (patch.amountCents !== undefined || patch.splits !== undefined || patch.accountId !== undefined) {
@@ -255,6 +275,7 @@ export async function updateTransaction(
   const nextSplits =
     patch.splits ?? existing.splits.map((s) => ({ categoryId: s.categoryId, amountCents: s.amountCents, memo: s.memo ?? undefined }));
   assertSplitsSumToTotal(cents(nextAmount), nextSplits.map((s) => cents(s.amountCents)));
+  if (patch.splits) await requireSplitCategoriesInBudget(budgetId, patch.splits);
 
   const updated = await prisma.$transaction(async (tx) => {
     // Reverse this transaction's prior CC-offset effects before re-applying with new numbers.

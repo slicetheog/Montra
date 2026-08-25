@@ -189,7 +189,7 @@ export async function getMonthView(userId: string, budgetId: string, month: Date
 // Assign / move money
 // ---------------------------------------------------------------------------
 
-async function requireCategoryInBudget(categoryId: string, budgetId: string) {
+export async function requireCategoryInBudget(categoryId: string, budgetId: string) {
   const category = await prisma.category.findUnique({ where: { id: categoryId } });
   if (!category || category.budgetId !== budgetId) throw new NotFoundError("That category couldn't be found.");
   return category;
