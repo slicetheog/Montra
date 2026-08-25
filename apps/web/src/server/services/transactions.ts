@@ -222,6 +222,15 @@ export async function updateTransaction(
   await requireBudgetOwnership(budgetId, userId);
   const existing = await requireTransactionInBudget(transactionId, budgetId);
 
+  if (existing.cleared === "RECONCILED" && patch.cleared !== "CLEARED" && patch.cleared !== "UNCLEARED") {
+    // Allow un-reconciling (a deliberate un-lock) but block silent edits to a reconciled row's numbers.
+    if (patch.amountCents !== undefined || patch.splits !== undefined || patch.accountId !== undefined) {
+      throw new ConflictError(
+        "This transaction is part of a reconciled statement. Mark it uncleared first if you need to change it.",
+      );
+    }
+  }
+
   if (existing.type === "TRANSFER") {
     if (patch.splits) throw new ValidationError("Transfers can't have category splits.");
     const updated = await prisma.transaction.update({

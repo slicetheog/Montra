@@ -309,6 +309,7 @@ model Account {
   reconciliations      Reconciliation[]
   recurring            RecurringTransaction[]
   imports              Import[]
+  goals                Goal[]
   linkedCategories     Category[]             @relation("CategoryLinkedAccount")
 
   @@index([budgetId])
@@ -487,6 +488,9 @@ model Goal {
   budget                   Budget    @relation(fields: [budgetId], references: [id], onDelete: Cascade)
   categoryId               String?   @unique
   category                 Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  /// Set for DEBT_PAYOFF goals: the debt-carrying account being paid down.
+  accountId                String?
+  account                  Account?  @relation(fields: [accountId], references: [id], onDelete: Cascade)
   name                     String
   type                     GoalType
   targetAmountCents        Int?
@@ -496,6 +500,7 @@ model Goal {
   updatedAt                DateTime  @updatedAt
 
   @@index([budgetId])
+  @@index([accountId])
   @@map("goals")
 }
 

@@ -12,7 +12,6 @@ import { useAssignMoney, useBudgetMonth, useMoveMoney } from "@/hooks/use-budget
 import { formatCents, formatMonthLabel, cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
-import { AdBanner } from "@/components/ads/ad-banner";
 
 export function BudgetScreen({ budgetId }: { budgetId: string }) {
   const [month, setMonth] = useState(() => new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)));
@@ -205,8 +204,6 @@ export function BudgetScreen({ budgetId }: { budgetId: string }) {
           Add category group
         </Button>
       </div>
-
-      <AdBanner slot="budget-footer" />
 
       <MoveMoneyDialog
         open={Boolean(moveDialogFor)}

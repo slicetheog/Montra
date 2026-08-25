@@ -1,6 +1,7 @@
 import "server-only";
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
+import { InsufficientFundsError, MoneyError, SplitMismatchError } from "@montra/domain";
 import { UnauthorizedError } from "@/server/auth/session";
 
 /**
@@ -59,6 +60,12 @@ export function apiError(error: unknown): NextResponse {
     );
   }
   if (error instanceof ValidationError) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+  // Financial-engine invariant violations (packages/domain) are always the
+  // result of bad/mismatched input, not a server fault — surface them as
+  // the same clear 400 an app-level ValidationError would produce.
+  if (error instanceof SplitMismatchError || error instanceof InsufficientFundsError || error instanceof MoneyError) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
   if (error instanceof ZodError) {
