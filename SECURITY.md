@@ -53,6 +53,13 @@ abuse patterns without retaining an actual IP longer than necessary.
 
 ## Authorization: the part the spec calls out explicitly
 
+There is no admin account, admin role, or privileged access path of any
+kind — the `User` model has no `role`/`isAdmin` field, and no route
+grants broader access based on who's asking. Every account, including
+the one created by `npm run seed:demo` (see the root README), is an
+ordinary user whose data is exactly as isolated as everyone else's.
+That isolation is the actual security property this section is about:
+
 Every budget-scoped resource is checked against the authenticated
 session's `userId` on every request — not just for the top-level
 resource named in the URL, but for **every other ID referenced in the
