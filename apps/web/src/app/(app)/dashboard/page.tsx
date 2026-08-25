@@ -4,6 +4,7 @@ import Link from "next/link";
 import { PiggyBank, Target, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { useCurrentBudget } from "@/hooks/use-current-budget";
 import { useDashboard } from "@/hooks/use-dashboard";
+import { useMe } from "@/hooks/use-me";
 import { EmptyBudgetState } from "@/components/layout/empty-budget-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -13,6 +14,7 @@ import { formatCents, formatDate, cn } from "@/lib/utils";
 export default function DashboardPage() {
   const { budgetId, budget } = useCurrentBudget();
   const { data, isLoading } = useDashboard(budgetId);
+  const { data: me } = useMe();
 
   if (!budgetId) return <EmptyBudgetState />;
   if (isLoading || !data) {
@@ -30,13 +32,15 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col">
       <div className="p-4 sm:p-6">
-        <h1 className="mb-1 text-xl font-semibold">Welcome back{budget ? `, ${budget.name}` : ""}</h1>
-        <p className="mb-6 text-sm text-foreground-muted">Here&apos;s how things look right now.</p>
+        <h1 className="mb-1 text-xl font-semibold">Welcome back{me?.user?.name ? `, ${me.user.name}` : ""}</h1>
+        <p className="mb-6 text-sm text-foreground-muted">
+          Here&apos;s how {budget ? budget.name : "your budget"} looks right now.
+        </p>
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatCard icon={TrendingUp} label="Net worth" cents={data.netWorthCents} />
           <StatCard icon={Wallet} label="Cash" cents={data.cashCents} />
-          <StatCard icon={TrendingDown} label="Debt" cents={-data.totalDebtCents} tone="negative" />
+          <StatCard icon={TrendingDown} label="Debt" cents={-data.totalDebtCents} tone={data.totalDebtCents > 0 ? "negative" : undefined} />
           <StatCard icon={PiggyBank} label="Available to budget" cents={data.readyToAssignCents} href="/budget" />
         </div>
 

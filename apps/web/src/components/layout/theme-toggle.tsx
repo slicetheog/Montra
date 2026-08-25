@@ -28,6 +28,14 @@ export function ThemeToggle() {
             "flex size-7 items-center justify-center rounded-sm transition-colors",
             theme === value ? "bg-surface text-foreground shadow-sm" : "text-foreground-muted hover:text-foreground",
           )}
+          // The server can't see localStorage, so it always assumes
+          // "system" for this widget's selected state while the client's
+          // first render correctly reflects a saved preference — an
+          // intentional, expected divergence (same tradeoff every
+          // localStorage-backed theme toggle makes; the page's actual
+          // dark/light rendering itself is unaffected, handled separately
+          // by the blocking pre-hydration script in layout.tsx).
+          suppressHydrationWarning
         >
           <Icon className="size-4" />
         </button>

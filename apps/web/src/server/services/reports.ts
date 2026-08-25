@@ -15,7 +15,11 @@ export async function spendingByCategory(userId: string, budgetId: string, range
     where: {
       categoryId: { not: null },
       amountCents: { lt: 0 },
-      transaction: { budgetId, date: { gte: range.from, lte: range.to } },
+      // Exclude transfers: a credit-card payment auto-categorizes its
+      // checking-side leg into "Payment: <Card>" (see budget.ts), which is
+      // money moving between your own accounts, not new spending — the
+      // original purchase already counted once, in its real category.
+      transaction: { budgetId, type: { not: "TRANSFER" }, date: { gte: range.from, lte: range.to } },
     },
     _sum: { amountCents: true },
   });

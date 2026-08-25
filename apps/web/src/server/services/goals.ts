@@ -95,7 +95,7 @@ export async function listGoals(userId: string, budgetId: string) {
     orderBy: { createdAt: "asc" },
     include: {
       category: { select: { id: true, name: true } },
-      account: { select: { id: true, name: true }, include: { debt: true } },
+      account: { select: { id: true, name: true, debt: true } },
     },
   });
 
