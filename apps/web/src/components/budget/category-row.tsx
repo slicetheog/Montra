@@ -38,6 +38,7 @@ export function CategoryRow({
     <button
       type="button"
       onClick={() => onMoveMoney(category.categoryId)}
+      data-testid={`move-${category.categoryId}`}
       className="flex size-7 shrink-0 items-center justify-center rounded text-foreground-muted hover:bg-surface hover:text-foreground"
       aria-label={`Move money from ${category.name}`}
       title="Move money"
@@ -60,13 +61,22 @@ export function CategoryRow({
           <div className="mt-1 flex items-center gap-3 text-xs text-foreground-muted">
             <span className="flex items-center gap-1">
               Assigned
-              <AssignCell valueCents={category.assignedCents} onSave={(cents) => onAssign(category.categoryId, cents)} />
+              <AssignCell
+                valueCents={category.assignedCents}
+                onSave={(cents) => onAssign(category.categoryId, cents)}
+                testId={`assign-${category.categoryId}`}
+              />
             </span>
             <span>Activity {formatCents(category.activityCents)}</span>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <span className={cn("text-sm font-semibold tabular-nums", availableTone)}>{formatCents(category.availableCents)}</span>
+          <span
+            data-testid={`available-${category.categoryId}`}
+            className={cn("text-sm font-semibold tabular-nums", availableTone)}
+          >
+            {formatCents(category.availableCents)}
+          </span>
           {moveButton}
         </div>
       </div>
@@ -79,10 +89,17 @@ export function CategoryRow({
         )}
       </div>
       <div className="hidden text-right text-sm tabular-nums sm:block">
-        <AssignCell valueCents={category.assignedCents} onSave={(cents) => onAssign(category.categoryId, cents)} />
+        <AssignCell
+          valueCents={category.assignedCents}
+          onSave={(cents) => onAssign(category.categoryId, cents)}
+          testId={`assign-${category.categoryId}`}
+        />
       </div>
       <div className="hidden text-right text-sm tabular-nums text-foreground-muted sm:block">{formatCents(category.activityCents)}</div>
-      <div className={cn("hidden text-right text-sm font-medium tabular-nums sm:block", availableTone)}>
+      <div
+        data-testid={`available-${category.categoryId}`}
+        className={cn("hidden text-right text-sm font-medium tabular-nums sm:block", availableTone)}
+      >
         {formatCents(category.availableCents)}
       </div>
       <div className="hidden sm:flex sm:justify-center">{moveButton}</div>

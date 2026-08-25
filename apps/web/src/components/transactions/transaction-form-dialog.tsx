@@ -115,18 +115,24 @@ function TransactionFormBody({
 
       let splitInputs: { categoryId: string | null; amountCents: number; memo?: string }[] | undefined;
       if (!isTransfer) {
-        splitInputs = splits.map((s) => ({
-          categoryId: s.categoryId,
-          amountCents: isOutflow
-            ? -Math.abs(parseDecimalToCents(s.amount || "0"))
-            : Math.abs(parseDecimalToCents(s.amount || "0")),
-          memo: s.memo || undefined,
-        }));
-        const sum = splitInputs.reduce((a, s) => a + s.amountCents, 0);
-        if (sum !== signedTotal) {
-          throw new Error(
-            `Splits total ${formatCents(sum)} but the transaction is ${formatCents(signedTotal)}. They must match exactly.`,
-          );
+        if (splits.length === 1) {
+          // The common case: one category, no separate per-split amount to
+          // type — it's just the transaction total.
+          splitInputs = [{ categoryId: splits[0].categoryId, amountCents: signedTotal, memo: splits[0].memo || undefined }];
+        } else {
+          splitInputs = splits.map((s) => ({
+            categoryId: s.categoryId,
+            amountCents: isOutflow
+              ? -Math.abs(parseDecimalToCents(s.amount || "0"))
+              : Math.abs(parseDecimalToCents(s.amount || "0")),
+            memo: s.memo || undefined,
+          }));
+          const sum = splitInputs.reduce((a, s) => a + s.amountCents, 0);
+          if (sum !== signedTotal) {
+            throw new Error(
+              `Splits total ${formatCents(sum)} but the transaction is ${formatCents(signedTotal)}. They must match exactly.`,
+            );
+          }
         }
       }
 
@@ -267,7 +273,16 @@ function TransactionFormBody({
                   )}
                   <button
                     type="button"
-                    onClick={() => setSplits((prev) => [...prev, { categoryId: null, amount: "", memo: "" }])}
+                    onClick={() =>
+                      setSplits((prev) =>
+                        // Give the existing category the full amount as a
+                        // starting point once a second row appears — up to
+                        // then, the total *is* the (single) split's amount.
+                        prev.length === 1
+                          ? [{ ...prev[0], amount: amount || prev[0].amount }, { categoryId: null, amount: "", memo: "" }]
+                          : [...prev, { categoryId: null, amount: "", memo: "" }],
+                      )
+                    }
                     className="flex items-center gap-1 text-xs text-brand hover:underline"
                   >
                     <Plus className="size-3" /> Add split
@@ -289,22 +304,25 @@ function TransactionFormBody({
                       ))}
                     </SelectContent>
                   </Select>
-                  <Input
-                    className="w-28"
-                    inputMode="decimal"
-                    placeholder="0.00"
-                    value={split.amount}
-                    onChange={(e) => updateSplit(i, { amount: e.target.value })}
-                  />
                   {splits.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => setSplits((prev) => prev.filter((_, idx) => idx !== i))}
-                      className="text-foreground-muted hover:text-negative"
-                      aria-label="Remove split"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
+                    <>
+                      <Input
+                        className="w-28"
+                        inputMode="decimal"
+                        placeholder="0.00"
+                        aria-label={`Split ${i + 1} amount`}
+                        value={split.amount}
+                        onChange={(e) => updateSplit(i, { amount: e.target.value })}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setSplits((prev) => prev.filter((_, idx) => idx !== i))}
+                        className="text-foreground-muted hover:text-negative"
+                        aria-label="Remove split"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    </>
                   )}
                 </div>
               ))}

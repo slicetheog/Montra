@@ -39,12 +39,22 @@ export function AddGoalDialog({ open, onOpenChange, budgetId }: { open: boolean;
   async function submit() {
     setError(null);
     if (!name.trim()) return setError("Give the goal a name.");
+    if (type === "DEBT_PAYOFF") {
+      if (!accountId) return setError("Choose which debt account this goal pays off.");
+    } else if (!categoryId) {
+      return setError("Choose which category this goal tracks.");
+    }
+    if ((type === "TARGET_BALANCE" || type === "TARGET_DATE") && !targetAmount) {
+      return setError("Enter a target amount.");
+    }
+    if (type === "TARGET_DATE" && !targetDate) return setError("Choose a target date.");
+    if (type === "MONTHLY_CONTRIBUTION" && !monthlyAmount) return setError("Enter a monthly contribution amount.");
     try {
       await createGoal.mutateAsync({
         name: name.trim(),
         type,
-        categoryId: type !== "DEBT_PAYOFF" ? categoryId : undefined,
-        accountId: type === "DEBT_PAYOFF" ? accountId : undefined,
+        categoryId: type !== "DEBT_PAYOFF" ? categoryId || undefined : undefined,
+        accountId: type === "DEBT_PAYOFF" ? accountId || undefined : undefined,
         targetAmountCents: targetAmount ? parseDecimalToCents(targetAmount) : undefined,
         targetDate: type === "TARGET_DATE" && targetDate ? targetDate : undefined,
         monthlyContributionCents: monthlyAmount ? parseDecimalToCents(monthlyAmount) : undefined,

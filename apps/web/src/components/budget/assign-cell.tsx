@@ -8,9 +8,14 @@ import { toast } from "@/lib/toast";
 export function AssignCell({
   valueCents,
   onSave,
+  testId,
 }: {
   valueCents: number;
   onSave: (nextCents: number) => Promise<unknown>;
+  /** Stable hook for e2e tests — the responsive mobile/desktop rows render
+   *  two instances of this per category (only one visible at a time), so
+   *  tests must further filter to the visible one. */
+  testId?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -39,6 +44,7 @@ export function AssignCell({
       <button
         type="button"
         onClick={startEdit}
+        data-testid={testId}
         className="w-full rounded px-2 py-1 text-right tabular-nums hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
         aria-label={`Assigned ${formatCents(valueCents)}. Click to edit.`}
       >
@@ -53,6 +59,7 @@ export function AssignCell({
       value={draft}
       disabled={saving}
       onChange={(e) => setDraft(e.target.value)}
+      onFocus={(e) => e.target.select()}
       onBlur={commit}
       onKeyDown={(e) => {
         if (e.key === "Enter") (e.target as HTMLInputElement).blur();
