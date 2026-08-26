@@ -4,11 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npm run db:migrate:deploy --prefix ../../packages/db && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "seed:demo": "node scripts/seed-demo.mjs"
   },
   "dependencies": {
     "@montra/db": "*",

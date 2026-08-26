@@ -378,7 +378,7 @@ function SecuritySection({ onSignOutRedirect }: { onSignOutRedirect: () => void 
     setDeleteError(null);
     setDeleting(true);
     try {
-      await api.del("/api/account");
+      await api.del("/api/account", { password: deletePassword });
       queryClient.clear();
       onSignOutRedirect();
     } catch (err) {

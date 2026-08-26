@@ -32,30 +32,55 @@ and CI don't need real Stripe credentials.
 
 ## Database setup
 
-```bash
-# One-time: create the database
-createdb montra_prod
+`apps/web`'s own `build` script (`npm run build`, whatever platform runs
+it) applies pending migrations before it builds:
 
-# Apply all migrations (non-interactive — safe for a deploy pipeline;
-# unlike `prisma migrate dev`, this never tries to resolve schema drift
-# by prompting)
-DATABASE_URL="postgresql://..." npm run db:migrate:deploy -w packages/db
+```json
+"build": "npm run db:migrate:deploy --prefix ../../packages/db && next build"
 ```
 
-Run migrations as a distinct deploy step *before* starting the new
-app version, not as something the app does on boot — this keeps
-migration failures visibly separate from application startup failures,
-and avoids two app instances racing to apply the same migration during a
-rolling deploy.
+This is `prisma migrate deploy` — non-interactive and safe for a deploy
+pipeline; unlike `prisma migrate dev`, it never tries to resolve schema
+drift by prompting, and re-running it when there's nothing new to apply
+is a no-op. It runs during the *build* step, before the new version ever
+starts serving traffic — on Vercel specifically this is safe because
+builds are isolated, one per deployment, never running concurrently
+against the same deploy the way multiple already-running app instances
+could race each other applying a migration on boot.
+
+The only thing this doesn't do for you is create the database itself:
+
+```bash
+createdb montra_prod   # or your host's equivalent — see below for Vercel
+```
+
+and `DATABASE_URL` has to actually be set (see Environment variables,
+above) before the first build/deploy — the build-time migration step
+needs it exactly like everything else does.
+
+**On Vercel specifically:** environment variables set in the dashboard
+are injected as real process variables for both the build and runtime —
+Prisma picks them up automatically, no `.env` file needed there.
+Provisioning a Postgres database from Vercel's own Storage tab (Neon)
+and connecting it to the project will write the necessary variables for
+you, but **check the exact name it creates** — the integration lets you
+set a "custom prefix," and unless you set that prefix to exactly
+`DATABASE` (making the resulting variable `DATABASE_URL`), it'll create
+something like `STORAGE_URL` instead, which `schema.prisma` won't find
+(`env("DATABASE_URL")` is the only name it reads). Also leave "create a
+database branch for deployment" unchecked for Production/Preview unless
+you deliberately want each environment on its own separate, empty
+database branch that would each need migrating independently.
 
 ## Build and run
 
 ```bash
-npm install
-npm run db:generate   # regenerate the Prisma client for this environment
-npm run build          # apps/web — production build, includes a full
-                        # TypeScript check (next build fails the build on
-                        # a type error, not just at `npm run typecheck`)
+npm install             # also generates the Prisma client (postinstall)
+npm run build            # apps/web — applies pending migrations (see
+                          # Database setup above), then a production
+                          # build with a full TypeScript check (next
+                          # build fails the build on a type error, not
+                          # just at `npm run typecheck`)
 npm run start -w apps/web  # next start, serves the build
 ```
 

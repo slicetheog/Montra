@@ -28,9 +28,12 @@ npm install
 createdb montra_dev
 createdb montra_test
 
-# 3. Configure environment
+# 3. Configure environment — DATABASE_URL needs to go in *both* files,
+# since Next.js and Prisma's own CLI (migrate/generate/studio, and the
+# migration step in `npm run build`) each discover it independently
 cp apps/web/.env.example apps/web/.env.local
-# edit apps/web/.env.local — at minimum, point DATABASE_URL at montra_dev
+cp packages/db/.env.example packages/db/.env
+# edit both — at minimum, point DATABASE_URL at montra_dev in each
 
 # 4. Run migrations
 npm run db:migrate
@@ -77,8 +80,29 @@ Run from the repo root unless noted.
 | `npm run test` | Run the domain engine's unit test suite (Vitest) |
 | `npm run test:e2e` | Run the Playwright end-to-end suite (needs a running dev server + `montra_test` DB — see `apps/web/playwright.config.ts`) |
 | `npm run db:migrate` | Apply Prisma migrations to your dev DB |
-| `npm run db:generate` | Regenerate the Prisma client after a schema change |
-| `npm run db:seed` | Seed default category groups/categories reference data |
+| `npm run db:generate` | Regenerate the Prisma client after a schema change (runs automatically on `npm install`) |
+| `npm run seed:demo` | Create a demo account with a populated budget — see "Demo account" below |
+
+## Demo account
+
+There's no admin account or role in Montra — every user's data is fully
+isolated from every other user's (see SECURITY.md). What there is: a
+script that creates a regular account with two months of realistic
+transaction history already in it, so you can explore the app without
+doing onboarding by hand.
+
+```bash
+npm run dev              # in one terminal
+npm run seed:demo        # in another, once the dev server is up
+```
+
+This logs in at `/login` with `demo@montra.app` /
+`MontraDemo2026!`. Re-running it is a no-op if the account already has
+a budget; pass `-- --reset` to wipe it and start over
+(`npm run seed:demo -- --reset`). It talks to the app's own API (like a
+real user would, not by writing database rows directly), so point
+`BASE_URL` at a deployed environment if you want a populated demo
+account there instead of locally.
 
 ## What's built vs. roadmap
 

@@ -141,6 +141,12 @@ a deploy pipeline. See DEPLOYMENT.md.
 
 ## Seeding
 
-`npm run db:seed` (in `packages/db`) loads the reference data used for
-onboarding's "smart default categories" step (`src/seed.ts`) — it does
-not create any users or budgets.
+There's no database-level seed script — the "smart default categories"
+onboarding step is just an API endpoint
+(`POST /api/budgets/:id/seed-defaults`) that any budget can call, not
+reference data loaded into the database ahead of time (see API.md).
+
+For a populated demo account, use `npm run seed:demo` (see the root
+README's "Demo account" section) — it drives the running app's own API
+to create a regular user with sample data, rather than writing rows
+directly.
