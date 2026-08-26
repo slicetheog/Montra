@@ -86,23 +86,34 @@ Run from the repo root unless noted.
 ## Demo account
 
 There's no admin account or role in Montra — every user's data is fully
-isolated from every other user's (see SECURITY.md). What there is: a
-script that creates a regular account with two months of realistic
-transaction history already in it, so you can explore the app without
-doing onboarding by hand.
+isolated from every other user's (see SECURITY.md). What there is: a way
+to create a regular account with two months of realistic transaction
+history already in it, so you can explore the app without doing
+onboarding by hand. Both options below produce the identical result
+(same data, same code path — one's just reachable without a terminal)
+and log in at `/login` with `demo@montra.app` / `MontraDemo2026!`.
+
+**From a browser, on a deployment you don't have local access to**
+(e.g. Vercel): set the `SEED_DEMO_SECRET` environment variable on that
+deployment to something random, redeploy, then visit
+`https://<your-deployed-url>/api/dev/seed-demo?secret=<that value>`
+once. Unset or wrong secret, that URL 404s rather than confirming it
+exists. Add `&reset=1` to the URL to wipe the demo account and recreate
+it. Once you've used it, you can unset `SEED_DEMO_SECRET` again.
+
+**From a terminal**, against a running dev server or any deployment you
+can reach:
 
 ```bash
 npm run dev              # in one terminal
 npm run seed:demo        # in another, once the dev server is up
 ```
 
-This logs in at `/login` with `demo@montra.app` /
-`MontraDemo2026!`. Re-running it is a no-op if the account already has
-a budget; pass `-- --reset` to wipe it and start over
-(`npm run seed:demo -- --reset`). It talks to the app's own API (like a
-real user would, not by writing database rows directly), so point
-`BASE_URL` at a deployed environment if you want a populated demo
-account there instead of locally.
+Re-running it is a no-op if the account already has a budget; pass
+`-- --reset` to wipe it and start over (`npm run seed:demo -- --reset`).
+Point `BASE_URL` at a deployed environment instead of locally
+(`BASE_URL=https://your-app.vercel.app npm run seed:demo`) if you can
+reach it from wherever you're running this.
 
 ## What's built vs. roadmap
 
