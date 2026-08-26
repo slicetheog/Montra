@@ -140,3 +140,9 @@ Authorization section.
 | `POST` | `/api/purchases` | Initiates the $4.99 one-time purchase through the configured payment provider (`placeholder` or `stripe` — see DEPLOYMENT.md). |
 | `POST` | `/api/purchases/restore` | Restores the `adsRemoved` entitlement on a new device for a user who already purchased — entitlement is looked up server-side by user, never trusted from the client. |
 | `POST` | `/api/webhooks/stripe` | Stripe webhook receiver; verifies `STRIPE_WEBHOOK_SECRET` before trusting the event. |
+
+## Dev utility
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/api/dev/seed-demo` | Not part of the product surface — see the root README's "Demo account" section. Requires `?secret=` matching the `SEED_DEMO_SECRET` env var (unset by default); 404s otherwise rather than 403, same as every other unauthenticated-looking route in this app. |

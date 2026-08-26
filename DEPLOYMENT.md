@@ -23,6 +23,7 @@ staging/production.
 | `STRIPE_SECRET_KEY` | Only if `stripe` | Server-side Stripe API key. |
 | `STRIPE_WEBHOOK_SECRET` | Only if `stripe` | Verifies `POST /api/webhooks/stripe` came from Stripe. |
 | `STRIPE_REMOVE_ADS_PRICE_ID` | Only if `stripe` | The Stripe Price ID for the one-time $4.99 Remove Ads purchase. |
+| `SEED_DEMO_SECRET` | No | Enables `GET /api/dev/seed-demo?secret=...` to populate a demo account from a browser — see the root README's "Demo account" section. Leave unset unless you're actively using it. |
 
 `NODE_ENV=production` (set automatically by `next build`/`next start`)
 additionally controls whether the session cookie is marked `secure` —
