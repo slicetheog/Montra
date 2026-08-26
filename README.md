@@ -28,9 +28,12 @@ npm install
 createdb montra_dev
 createdb montra_test
 
-# 3. Configure environment
+# 3. Configure environment — DATABASE_URL needs to go in *both* files,
+# since Next.js and Prisma's own CLI (migrate/generate/studio, and the
+# migration step in `npm run build`) each discover it independently
 cp apps/web/.env.example apps/web/.env.local
-# edit apps/web/.env.local — at minimum, point DATABASE_URL at montra_dev
+cp packages/db/.env.example packages/db/.env
+# edit both — at minimum, point DATABASE_URL at montra_dev in each
 
 # 4. Run migrations
 npm run db:migrate
