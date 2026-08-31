@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { parseDecimalToCents, MoneyError } from "@montra/domain";
 import { api, ApiRequestError } from "@/lib/api-client";
 import { ACCOUNT_TYPES, ACCOUNT_TYPE_LABELS } from "@/lib/constants";
 import { toast } from "@/lib/toast";
@@ -19,7 +20,19 @@ interface DraftAccount {
   startingBalance: string; // decimal string from the input
 }
 
-const STEPS = ["Welcome", "Accounts", "Categories", "Give it a job", "Done"];
+interface CreatedAccount {
+  id: string;
+  name: string;
+  type: string;
+}
+
+/** WEEKLY/BIWEEKLY/MONTHLY map straight to RecurrenceFrequency; SEMI_MONTHLY
+ *  isn't a real frequency in the domain (see packages/domain/src/recurrence.ts)
+ *  — it's represented as two independent MONTHLY recurring transactions, one
+ *  per payday, which needs no changes to that engine at all. */
+type PayFrequency = "WEEKLY" | "BIWEEKLY" | "SEMI_MONTHLY" | "MONTHLY" | "SKIP";
+
+const STEPS = ["Welcome", "Accounts", "Paycheck", "Categories", "Give it a job", "Done"];
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -34,6 +47,13 @@ export default function OnboardingPage() {
   const [accounts, setAccounts] = useState<DraftAccount[]>([
     { name: "Checking", type: "CHECKING", startingBalance: "" },
   ]);
+  const [createdAccounts, setCreatedAccounts] = useState<CreatedAccount[]>([]);
+
+  const [payFrequency, setPayFrequency] = useState<PayFrequency>("BIWEEKLY");
+  const [payDate1, setPayDate1] = useState("");
+  const [payDate2, setPayDate2] = useState("");
+  const [payAmount, setPayAmount] = useState("");
+  const [payAccountId, setPayAccountId] = useState<string | null>(null);
 
   function updateAccount(index: number, patch: Partial<DraftAccount>) {
     setAccounts((prev) => prev.map((a, i) => (i === index ? { ...a, ...patch } : a)));
@@ -59,15 +79,67 @@ export default function OnboardingPage() {
     setLoading(true);
     try {
       const usable = accounts.filter((a) => a.name.trim());
+      const created: CreatedAccount[] = [];
       for (const a of usable) {
         const cents = Math.round((parseFloat(a.startingBalance || "0") || 0) * 100);
-        await api.post(`/api/budgets/${budgetId}/accounts`, {
+        const account = await api.post<CreatedAccount>(`/api/budgets/${budgetId}/accounts`, {
           name: a.name.trim(),
           type: a.type,
           startingBalanceCents: cents,
         });
+        created.push(account);
       }
-      setStep(2);
+      setCreatedAccounts(created);
+      // Default the paycheck deposit account to the first checking account
+      // (most common case), falling back to whatever else was created.
+      setPayAccountId(created.find((a) => a.type === "CHECKING")?.id ?? created[0]?.id ?? null);
+      // Nowhere to point a paycheck reminder without an account — skip
+      // straight to Categories rather than showing an empty, unusable step.
+      setStep(created.length > 0 ? 2 : 3);
+    } catch (err) {
+      setError(err instanceof ApiRequestError ? err.message : "Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleCreatePaycheck() {
+    if (!budgetId) return;
+    setError(null);
+    if (payFrequency === "SKIP") {
+      setStep(3);
+      return;
+    }
+    if (!payAccountId) return setError("Choose which account your paycheck deposits to.");
+    if (!payDate1) return setError(payFrequency === "SEMI_MONTHLY" ? "Enter your first payday." : "Enter your next payday.");
+    if (payFrequency === "SEMI_MONTHLY" && !payDate2) return setError("Enter your second payday.");
+
+    let amountCents: number;
+    try {
+      amountCents = payAmount.trim() ? parseDecimalToCents(payAmount) : 0;
+    } catch (err) {
+      return setError(err instanceof MoneyError ? "Enter a valid dollar amount." : "Something went wrong. Please try again.");
+    }
+    if (amountCents <= 0) return setError("Enter your approximate paycheck amount.");
+
+    setLoading(true);
+    try {
+      const dates = payFrequency === "SEMI_MONTHLY" ? [payDate1, payDate2] : [payDate1];
+      for (const startDate of dates) {
+        await api.post(`/api/budgets/${budgetId}/recurring`, {
+          accountId: payAccountId,
+          payeeName: "Paycheck",
+          amountCents,
+          type: "INCOME",
+          frequency: payFrequency === "SEMI_MONTHLY" ? "MONTHLY" : payFrequency,
+          startDate,
+          // A reminder only — never auto-adds the transaction. Ready to
+          // Assign should only ever reflect money that's actually landed;
+          // you still enter the real deposit yourself when it does.
+          autoCreate: false,
+        });
+      }
+      setStep(3);
     } catch (err) {
       setError(err instanceof ApiRequestError ? err.message : "Something went wrong. Please try again.");
     } finally {
@@ -83,7 +155,7 @@ export default function OnboardingPage() {
       if (useDefaults) {
         await api.post(`/api/budgets/${budgetId}/seed-defaults`);
       }
-      setStep(3);
+      setStep(4);
     } catch (err) {
       setError(err instanceof ApiRequestError ? err.message : "Something went wrong. Please try again.");
     } finally {
@@ -216,7 +288,7 @@ export default function OnboardingPage() {
                 </div>
                 {error && <p className="text-sm text-negative">{error}</p>}
                 <div className="flex gap-2">
-                  <Button variant="ghost" onClick={() => setStep(2)}>
+                  <Button variant="ghost" onClick={() => setStep(3)}>
                     Skip for now
                   </Button>
                   <Button onClick={handleCreateAccounts} disabled={loading} className="flex-1">
@@ -227,6 +299,90 @@ export default function OnboardingPage() {
             )}
 
             {step === 2 && (
+              <div className="flex flex-col gap-5">
+                <div>
+                  <h1 className="text-xl font-semibold">When do you get paid?</h1>
+                  <p className="mt-2 text-sm text-foreground-muted">
+                    We&apos;ll show a heads-up on your dashboard before payday, so a tight-looking budget the
+                    day before doesn&apos;t feel like something&apos;s wrong — it&apos;s just money that hasn&apos;t landed
+                    yet. This never changes what you can actually assign; you&apos;ll still add the real
+                    deposit as a transaction once it arrives.
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <Label>Pay schedule</Label>
+                  <Select value={payFrequency} onValueChange={(v) => setPayFrequency(v as PayFrequency)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="WEEKLY">Weekly</SelectItem>
+                      <SelectItem value="BIWEEKLY">Every 2 weeks</SelectItem>
+                      <SelectItem value="SEMI_MONTHLY">Twice a month (e.g. 1st &amp; 15th)</SelectItem>
+                      <SelectItem value="MONTHLY">Monthly</SelectItem>
+                      <SelectItem value="SKIP">I&apos;ll set this up later</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {payFrequency !== "SKIP" && (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="pay-date-1">{payFrequency === "SEMI_MONTHLY" ? "First payday" : "Next payday"}</Label>
+                        <Input id="pay-date-1" type="date" value={payDate1} onChange={(e) => setPayDate1(e.target.value)} />
+                      </div>
+                      {payFrequency === "SEMI_MONTHLY" && (
+                        <div className="flex flex-col gap-1.5">
+                          <Label htmlFor="pay-date-2">Second payday</Label>
+                          <Input id="pay-date-2" type="date" value={payDate2} onChange={(e) => setPayDate2(e.target.value)} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="pay-amount">Approximate amount</Label>
+                        <Input
+                          id="pay-amount"
+                          inputMode="decimal"
+                          placeholder="0.00"
+                          value={payAmount}
+                          onChange={(e) => setPayAmount(e.target.value)}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <Label>Deposits to</Label>
+                        <Select value={payAccountId ?? ""} onValueChange={setPayAccountId}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select an account" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {createdAccounts.map((a) => (
+                              <SelectItem key={a.id} value={a.id}>
+                                {a.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {error && <p className="text-sm text-negative">{error}</p>}
+                <div className="flex gap-2">
+                  <Button variant="ghost" onClick={() => setStep(3)}>
+                    Skip for now
+                  </Button>
+                  <Button onClick={handleCreatePaycheck} disabled={loading} className="flex-1">
+                    {loading ? "Saving…" : "Continue"}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {step === 3 && (
               <div className="flex flex-col gap-5">
                 <div>
                   <h1 className="text-xl font-semibold">Create your categories</h1>
@@ -251,7 +407,7 @@ export default function OnboardingPage() {
               </div>
             )}
 
-            {step === 3 && (
+            {step === 4 && (
               <div className="flex flex-col gap-5">
                 <div>
                   <Sparkles className="size-8 text-accent" />
@@ -265,15 +421,17 @@ export default function OnboardingPage() {
                   </p>
                 </div>
                 <div className="rounded-md border border-border bg-brand-tint p-4 text-sm text-brand-strong">
-                  You can add your first paycheck any time from the Budget screen — no need to do it now.
+                  You can add your first paycheck any time from the Accounts screen — no need to do it now.
+                  (If you set up a pay schedule, that&apos;s just a heads-up on your dashboard; entering the
+                  actual deposit is what makes it real money you can assign.)
                 </div>
-                <Button onClick={() => setStep(4)} size="lg">
+                <Button onClick={() => setStep(5)} size="lg">
                   Got it
                 </Button>
               </div>
             )}
 
-            {step === 4 && (
+            {step === 5 && (
               <div className="flex flex-col items-center gap-5 py-6 text-center">
                 <div className="flex size-14 items-center justify-center rounded-full bg-positive-tint">
                   <Check className="size-7 text-positive" />

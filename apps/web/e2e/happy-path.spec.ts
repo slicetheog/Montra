@@ -36,6 +36,20 @@ test("full budgeting lifecycle", async ({ page }) => {
   await page.locator('input[id^="acct-balance-"]').first().fill("1000");
   await page.getByRole("button", { name: "Continue" }).click();
 
+  // 3b. Onboarding: paycheck schedule. Semi-monthly is the trickiest case —
+  // it's represented as two independent MONTHLY recurring transactions
+  // under the hood, since the domain has no native "twice a month"
+  // frequency (see the PayFrequency comment in onboarding/page.tsx).
+  await expect(page.getByRole("heading", { name: "When do you get paid?" })).toBeVisible();
+  await page.getByRole("combobox").first().click(); // Pay schedule
+  await page.getByRole("option", { name: /Twice a month/ }).click();
+  await page.locator("#pay-date-1").fill("2026-09-01");
+  await page.locator("#pay-date-2").fill("2026-09-15");
+  await page.locator("#pay-amount").fill("2000");
+  await page.getByRole("combobox").nth(1).click(); // Deposits to
+  await page.getByRole("option", { name: "Checking" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+
   // 4. Onboarding: smart default categories
   await expect(page.getByRole("heading", { name: "Create your categories" })).toBeVisible();
   await page.getByRole("button", { name: "Use suggested categories" }).click();
@@ -53,6 +67,26 @@ test("full budgeting lifecycle", async ({ page }) => {
   await expect(page.getByText(/Welcome back/)).toBeVisible();
   await expect(page.getByText("$1,000.00").first()).toBeVisible();
 
+  // 7b. Dashboard forecast banner: the paycheck schedule set during
+  // onboarding shows up as a heads-up, never as real money — it must not
+  // have moved the $1,000.00 Available to Budget figure checked above.
+  await expect(page.getByText(/Paycheck: \$2,000\.00 into Checking/)).toBeVisible();
+  await expect(page.getByText(/won't include it until you add it as an actual transaction/)).toBeVisible();
+
+  // Confirm two real MONTHLY recurring transactions exist (one per payday),
+  // both still autoCreate: false (reminder only) — the forecast never
+  // touches the ledger.
+  const me = await (await page.request.get("/api/auth/me")).json();
+  const budgetId = me.budgets[0].id;
+  const recurringAfterOnboarding = await (await page.request.get(`/api/budgets/${budgetId}/recurring`)).json();
+  const paychecks = recurringAfterOnboarding.filter((r: { type: string }) => r.type === "INCOME");
+  expect(paychecks).toHaveLength(2);
+  for (const p of paychecks) {
+    expect(p.frequency).toBe("MONTHLY");
+    expect(p.autoCreate).toBe(false);
+    expect(p.amountCents).toBe(200000);
+  }
+
   // 8. Add a paycheck (income) from the Checking account register
   await page.goto("/accounts");
   await page.getByRole("link", { name: "Checking" }).click();
@@ -66,8 +100,6 @@ test("full budgeting lifecycle", async ({ page }) => {
   await expect(page.getByText("Transaction added.")).toBeVisible();
 
   // 9. Go to Budget, assign the new income to Groceries
-  const me = await (await page.request.get("/api/auth/me")).json();
-  const budgetId = me.budgets[0].id;
   const categoryGroups = await (await page.request.get(`/api/budgets/${budgetId}/categories`)).json();
   const groceriesId = categoryGroups.flatMap((g: { categories: { id: string; name: string }[] }) => g.categories).find(
     (c: { name: string }) => c.name === "Groceries",
