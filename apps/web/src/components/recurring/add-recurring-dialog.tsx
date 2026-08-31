@@ -17,11 +17,19 @@ const FREQUENCY_LABELS = {
   DAILY: "Daily",
   WEEKLY: "Weekly",
   BIWEEKLY: "Every 2 weeks",
+  SEMI_MONTHLY: "Twice a month (e.g. 1st & 15th)",
   MONTHLY: "Monthly",
   EVERY_N_MONTHS: "Every N months",
   YEARLY: "Yearly",
   CUSTOM: "Every N days",
 } as const;
+
+/** SEMI_MONTHLY isn't a real RecurrenceFrequency in the domain (see
+ *  packages/domain/src/recurrence.ts) — a schedule like "1st & 15th" is
+ *  represented as two independent MONTHLY recurring transactions, one per
+ *  date, the same convenience the onboarding paycheck step offers. Every
+ *  other value here maps straight to a real domain frequency. */
+type UIFrequency = keyof typeof FREQUENCY_LABELS;
 
 export function AddRecurringDialog({ open, onOpenChange, budgetId }: { open: boolean; onOpenChange: (open: boolean) => void; budgetId: string }) {
   const accounts = useAccounts(budgetId);
@@ -34,29 +42,42 @@ export function AddRecurringDialog({ open, onOpenChange, budgetId }: { open: boo
   const [categoryId, setCategoryId] = useState("");
   const [type, setType] = useState<"EXPENSE" | "INCOME">("EXPENSE");
   const [amount, setAmount] = useState("");
-  const [frequency, setFrequency] = useState<keyof typeof FREQUENCY_LABELS>("MONTHLY");
+  const [frequency, setFrequency] = useState<UIFrequency>("MONTHLY");
   const [intervalCount, setIntervalCount] = useState("1");
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [startDate2, setStartDate2] = useState(""); // second payday, semi-monthly only
   const [autoCreate, setAutoCreate] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   async function submit() {
     setError(null);
     if (!accountId) return setError("Choose an account.");
+    if (frequency === "SEMI_MONTHLY" && !startDate2) return setError("Enter the second date.");
     try {
       const magnitude = parseDecimalToCents(amount || "0");
       if (magnitude === 0) return setError("Enter an amount.");
-      await createRecurring.mutateAsync({
+      const shared = {
         accountId,
         payeeName: payeeName || undefined,
         categoryId: categoryId || undefined,
         amountCents: type === "EXPENSE" ? -Math.abs(magnitude) : Math.abs(magnitude),
         type,
-        frequency,
-        intervalCount: ["EVERY_N_MONTHS", "CUSTOM"].includes(frequency) ? Number(intervalCount) || 1 : undefined,
-        startDate,
         autoCreate,
-      });
+      };
+      if (frequency === "SEMI_MONTHLY") {
+        // Two independent MONTHLY recurring transactions, one per date —
+        // see the UIFrequency doc comment above.
+        for (const date of [startDate, startDate2]) {
+          await createRecurring.mutateAsync({ ...shared, frequency: "MONTHLY", startDate: date });
+        }
+      } else {
+        await createRecurring.mutateAsync({
+          ...shared,
+          frequency,
+          intervalCount: ["EVERY_N_MONTHS", "CUSTOM"].includes(frequency) ? Number(intervalCount) || 1 : undefined,
+          startDate,
+        });
+      }
       toast.success("Recurring transaction created.");
       onOpenChange(false);
       setPayeeName("");
@@ -136,7 +157,7 @@ export function AddRecurringDialog({ open, onOpenChange, budgetId }: { open: boo
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <Label>Frequency</Label>
-              <Select value={frequency} onValueChange={(v) => setFrequency(v as keyof typeof FREQUENCY_LABELS)}>
+              <Select value={frequency} onValueChange={(v) => setFrequency(v as UIFrequency)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -150,10 +171,17 @@ export function AddRecurringDialog({ open, onOpenChange, budgetId }: { open: boo
               </Select>
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="rec-start">Start date</Label>
+              <Label htmlFor="rec-start">{frequency === "SEMI_MONTHLY" ? "First date" : "Start date"}</Label>
               <Input id="rec-start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
             </div>
           </div>
+
+          {frequency === "SEMI_MONTHLY" && (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="rec-start-2">Second date</Label>
+              <Input id="rec-start-2" type="date" className="max-w-[calc(50%-0.375rem)]" value={startDate2} onChange={(e) => setStartDate2(e.target.value)} />
+            </div>
+          )}
 
           {(frequency === "EVERY_N_MONTHS" || frequency === "CUSTOM") && (
             <div className="flex flex-col gap-1.5">

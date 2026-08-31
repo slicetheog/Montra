@@ -288,7 +288,10 @@ export default function OnboardingPage() {
                 </div>
                 {error && <p className="text-sm text-negative">{error}</p>}
                 <div className="flex gap-2">
-                  <Button variant="ghost" onClick={() => setStep(3)}>
+                  {/* Disabled while Continue's request is in flight — otherwise a user who
+                      clicks both in quick succession gets yanked back to the Paycheck step
+                      when handleCreateAccounts's setStep(2) resolves after this one fires. */}
+                  <Button variant="ghost" onClick={() => setStep(3)} disabled={loading}>
                     Skip for now
                   </Button>
                   <Button onClick={handleCreateAccounts} disabled={loading} className="flex-1">

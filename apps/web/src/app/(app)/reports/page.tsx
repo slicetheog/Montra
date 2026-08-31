@@ -8,7 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AdBanner } from "@/components/ads/ad-banner";
 import { formatCents } from "@/lib/utils";
 
-const CHART_COLORS = ["#0f5f57", "#b3781c", "#147d5f", "#a8641b", "#5c625f", "#0b4a44", "#8b8f89"];
+// The dataviz skill's validated default categorical palette (blue, orange,
+// aqua, yellow, magenta, green, violet, red) — fixed order, CVD-safe, and
+// each row here already carries a visible name label, satisfying the
+// contrast-relief rule for the three slots that dip below 3:1 on white.
+const CHART_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"];
 
 export default function ReportsPage() {
   const { budgetId } = useCurrentBudget();
@@ -70,7 +74,7 @@ export default function ReportsPage() {
                         formatter={(value: number) => formatCents(value)}
                         contentStyle={{ background: "var(--surface)", border: "1px solid var(--border-strong)", borderRadius: 8, fontSize: 12 }}
                       />
-                      <Line type="monotone" dataKey="netCents" name="Net" stroke="#0f5f57" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="netCents" name="Net" stroke="#2a78d6" strokeWidth={2} dot={false} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>

@@ -59,7 +59,10 @@ export default function NetWorthPage() {
                   formatter={(value: number) => formatCents(value)}
                   contentStyle={{ background: "var(--surface)", border: "1px solid var(--border-strong)", borderRadius: 8, fontSize: 12 }}
                 />
-                <Line type="monotone" dataKey="netWorthCents" name="Net worth" stroke="#0f5f57" strokeWidth={2} dot={false} />
+                {/* Brand blue — the dataviz palette's validated categorical slot 1 (see palette.md),
+                    which reads at >=4.2:1 against both the light and dark chart surface without
+                    needing a separate per-theme value. */}
+                <Line type="monotone" dataKey="netWorthCents" name="Net worth" stroke="#2a78d6" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
