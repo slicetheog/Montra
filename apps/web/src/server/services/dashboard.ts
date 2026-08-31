@@ -50,7 +50,25 @@ export async function getDashboardSummary(userId: string, budgetId: string) {
     .sort((a, b) => a.nextOccurrenceDate.getTime() - b.nextOccurrenceDate.getTime())
     .slice(0, 5);
 
+  // The soonest scheduled paycheck, surfaced separately from the general
+  // "Upcoming" list so it can be shown prominently — it's the direct answer
+  // to "why does my budget look tight right now," without ever being
+  // counted in readyToAssignCents itself: a forecast is not money that has
+  // actually landed, and every other figure on this dashboard reflects
+  // only the ledger as it stands today (see FINANCIAL_ENGINE.md).
+  const nextPaycheck = recurring
+    .filter((r) => r.isActive && r.type === "INCOME")
+    .sort((a, b) => a.nextOccurrenceDate.getTime() - b.nextOccurrenceDate.getTime())[0];
+
   return {
+    nextPaycheck: nextPaycheck
+      ? {
+          amountCents: nextPaycheck.amountCents,
+          date: nextPaycheck.nextOccurrenceDate,
+          payeeName: nextPaycheck.payee?.name ?? null,
+          accountName: nextPaycheck.account.name,
+        }
+      : null,
     netWorthCents: netWorth.netWorthCents,
     cashCents,
     totalDebtCents: netWorth.totalLiabilitiesCents,

@@ -12,6 +12,19 @@ export interface DashboardSummary {
   readyToAssignCents: number;
   totalAssignedCents: number;
   totalAvailableCents: number;
+  /**
+   * The soonest scheduled paycheck, if one's been set up (onboarding, or a
+   * manually created income recurring transaction) — a forecast for
+   * display only. It's never included in readyToAssignCents: nothing here
+   * counts as real money until it's actually landed and been entered as a
+   * transaction, the same as every other figure in this app.
+   */
+  nextPaycheck: {
+    amountCents: number;
+    date: string;
+    payeeName: string | null;
+    accountName: string;
+  } | null;
   goals: Array<{
     id: string;
     name: string;

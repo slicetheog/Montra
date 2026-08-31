@@ -1,15 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { PiggyBank, Target, TrendingDown, TrendingUp, Wallet } from "lucide-react";
+import { CalendarClock, PiggyBank, Target, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { useCurrentBudget } from "@/hooks/use-current-budget";
-import { useDashboard } from "@/hooks/use-dashboard";
+import { useDashboard, type DashboardSummary } from "@/hooks/use-dashboard";
 import { useMe } from "@/hooks/use-me";
 import { EmptyBudgetState } from "@/components/layout/empty-budget-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { AdBanner } from "@/components/ads/ad-banner";
-import { formatCents, formatDate, cn } from "@/lib/utils";
+import { formatCents, formatDate, daysUntil, cn } from "@/lib/utils";
 
 export default function DashboardPage() {
   const { budgetId, budget } = useCurrentBudget();
@@ -33,9 +33,11 @@ export default function DashboardPage() {
     <div className="flex flex-col">
       <div className="p-4 sm:p-6">
         <h1 className="mb-1 text-xl font-semibold">Welcome back{me?.user?.name ? `, ${me.user.name}` : ""}</h1>
-        <p className="mb-6 text-sm text-foreground-muted">
+        <p className="mb-4 text-sm text-foreground-muted">
           Here&apos;s how {budget ? budget.name : "your budget"} looks right now.
         </p>
+
+        <NextPaycheckBanner nextPaycheck={data.nextPaycheck} />
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatCard icon={TrendingUp} label="Net worth" cents={data.netWorthCents} />
@@ -168,6 +170,48 @@ export default function DashboardPage() {
 
       <AdBanner slot="dashboard-footer" />
     </div>
+  );
+}
+
+/**
+ * A forecast, not a balance: this never changes what "Available to
+ * Budget" says, only tells you something's coming before it lands — see
+ * the nextPaycheck field's doc comment in use-dashboard.ts for why.
+ */
+function NextPaycheckBanner({ nextPaycheck }: { nextPaycheck: DashboardSummary["nextPaycheck"] }) {
+  if (!nextPaycheck) {
+    return (
+      <Link
+        href="/recurring"
+        className="mb-4 flex items-center gap-2 rounded-md border border-dashed border-border-strong px-3 py-2 text-sm text-foreground-muted hover:border-brand hover:text-foreground"
+      >
+        <CalendarClock className="size-4 shrink-0" />
+        Want a heads-up before payday? Set up your paycheck schedule.
+      </Link>
+    );
+  }
+
+  const days = daysUntil(nextPaycheck.date);
+  const when = days <= 0 ? "today" : days === 1 ? "tomorrow" : `${formatDate(nextPaycheck.date)} (in ${days} days)`;
+
+  return (
+    <Card className="mb-4 bg-brand-tint">
+      <CardContent className="flex flex-wrap items-center gap-3 p-4">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand text-brand-foreground">
+          <CalendarClock className="size-4.5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-foreground">
+            {nextPaycheck.payeeName ?? "Next paycheck"}: {formatCents(nextPaycheck.amountCents)} into{" "}
+            {nextPaycheck.accountName} — {when}
+          </p>
+          <p className="text-xs text-foreground-muted">
+            This is a heads-up, not a balance — Available to Budget won&apos;t include it until you add it as an
+            actual transaction once it lands.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
