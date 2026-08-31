@@ -9,6 +9,11 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary: "bg-brand text-brand-foreground hover:bg-brand-strong",
+        // Reserved for a handful of acquisition-facing calls to action (the
+        // marketing page), not everyday in-app actions — mirrors how a bank's
+        // site pairs a blue/white header with a red primary CTA, without
+        // turning every button in the product red.
+        accent: "bg-accent text-accent-foreground hover:bg-accent-strong",
         secondary: "bg-surface-muted text-foreground border border-border hover:border-border-strong",
         outline: "border border-border bg-transparent hover:bg-surface-muted",
         ghost: "hover:bg-surface-muted",

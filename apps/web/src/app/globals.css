@@ -39,6 +39,8 @@
   --brand-tint: #e8f0fb;
 
   --accent: #d0011b;
+  --accent-strong: #99000f;
+  --accent-foreground: #ffffff;
   --accent-tint: #fbe4e6;
 
   /* Darkened from the initial picks: both landed just under (positive) or
@@ -74,6 +76,8 @@
   --brand-tint: #142a44;
 
   --accent: #ff8a80;
+  --accent-strong: #ffab9f;
+  --accent-foreground: #3a0805;
   --accent-tint: #3a1418;
 
   --positive: #4ecb9f;
@@ -101,6 +105,8 @@
   --color-brand-tint: var(--brand-tint);
 
   --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-foreground: var(--accent-foreground);
   --color-accent-tint: var(--accent-tint);
 
   --color-positive: var(--positive);
@@ -119,8 +125,19 @@
   --radius-xl: var(--radius-xl);
 }
 
-* {
-  border-color: var(--border);
+/* @layer base (not a bare `*` rule) so this default loses to any Tailwind
+   border-color utility, per CSS cascade-layer rules: an unlayered rule
+   beats every layered one regardless of specificity, and Tailwind's own
+   utilities live in the `utilities` layer. Written as a bare rule, this
+   silently overrode border-brand/border-accent/border-transparent/
+   border-negative etc. everywhere they were used (checkboxes, the switch,
+   toasts, the assign-cell input, the "Delete account" card, and this
+   file's own nav accent stripe) — all rendered the plain neutral border
+   instead of their intended color. */
+@layer base {
+  * {
+    border-color: var(--border);
+  }
 }
 
 html {

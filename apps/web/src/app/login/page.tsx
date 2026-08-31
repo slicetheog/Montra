@@ -4,10 +4,10 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { LogoMark } from "@/components/brand/logo-mark";
 import { api, ApiRequestError } from "@/lib/api-client";
 
 function LoginForm() {
@@ -38,8 +38,8 @@ function LoginForm() {
     <div className="flex min-h-screen items-center justify-center bg-surface-muted px-4 py-10">
       <div className="w-full max-w-sm">
         <div className="mb-6 flex items-center justify-center gap-2 text-lg font-semibold">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-brand text-brand-foreground">
-            <Wallet className="size-4.5" />
+          <div className="flex size-8 items-center justify-center rounded-lg bg-brand">
+            <LogoMark className="size-4.5" />
           </div>
           Montra
         </div>
