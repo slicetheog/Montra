@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@montra/db";
 import type { AccountType } from "@prisma/client";
-import { cents, computeDebtPayoffProjection } from "@montra/domain";
+import { cents, computeDebtPayoffProjection, simulateDebtPayoffStrategy, type DebtStrategyInput } from "@montra/domain";
 import { ValidationError } from "@/server/api-helpers";
 import { requireBudgetOwnership } from "@/server/services/budgets";
 import { requireAccountInBudget } from "@/server/services/accounts";
@@ -72,4 +72,31 @@ export async function getDebtSummary(userId: string, budgetId: string) {
   const debts = await listDebts(userId, budgetId);
   const totalDebtCents = debts.reduce((sum, d) => sum + Math.abs(d.currentBalanceCents), 0);
   return { debts, totalDebtCents };
+}
+
+/**
+ * Snowball (smallest balance first) vs. avalanche (highest rate first),
+ * run against every debt account at once with a shared "extra" monthly
+ * amount on top of everyone's own minimum — the actual question someone
+ * with several debts has ("which do I attack first?"), which per-debt
+ * projections alone can't answer since they each assume paying only
+ * their own minimum in isolation.
+ */
+export async function getDebtStrategyComparison(userId: string, budgetId: string, extraMonthlyCents: number) {
+  const debts = await listDebts(userId, budgetId);
+  const inputs: DebtStrategyInput[] = debts.map((d) => ({
+    id: d.accountId,
+    balanceCents: d.currentBalanceCents,
+    annualRateBps: d.debt.interestRateBps,
+    minimumPaymentCents: cents(d.debt.minimumPaymentCents),
+  }));
+  const names = Object.fromEntries(debts.map((d) => [d.accountId, d.accountName]));
+  const asOf = new Date();
+  const extra = cents(Math.max(0, extraMonthlyCents));
+
+  return {
+    debtNames: names,
+    snowball: simulateDebtPayoffStrategy(inputs, extra, "SNOWBALL", asOf),
+    avalanche: simulateDebtPayoffStrategy(inputs, extra, "AVALANCHE", asOf),
+  };
 }

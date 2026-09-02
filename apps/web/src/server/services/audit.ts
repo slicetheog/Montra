@@ -26,3 +26,17 @@ export async function logAudit(params: {
     },
   });
 }
+
+/**
+ * The audit trail was written on every action above but never read back
+ * anywhere — no "recent activity" view existed. This is that read path,
+ * for a plain "what happened on my account and when" list in Settings.
+ */
+export async function listAuditLog(userId: string, limit = 50) {
+  return prisma.auditLog.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+    take: Math.min(limit, 200),
+    select: { id: true, action: true, entityType: true, createdAt: true },
+  });
+}

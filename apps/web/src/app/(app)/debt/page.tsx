@@ -1,18 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { CreditCard, Pencil } from "lucide-react";
+import { CreditCard, Pencil, Snowflake, TrendingDown } from "lucide-react";
 import { useCurrentBudget } from "@/hooks/use-current-budget";
-import { useDebts, useUpsertDebt } from "@/hooks/use-debts";
+import { useDebts, useUpsertDebt, useDebtStrategy, type DebtStrategyResult } from "@/hooks/use-debts";
 import { useAccounts } from "@/hooks/use-accounts";
 import { EmptyBudgetState } from "@/components/layout/empty-budget-state";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
-import { formatCents, formatDate } from "@/lib/utils";
+import { useFormatCents, useFormatDate } from "@/hooks/use-locale-format";
 import { parseDecimalToCents, MoneyError } from "@montra/domain";
 import { toast } from "@/lib/toast";
+import { cn } from "@/lib/utils";
 
 export default function DebtPage() {
   const { budgetId } = useCurrentBudget();
@@ -20,6 +21,8 @@ export default function DebtPage() {
   const accounts = useAccounts(budgetId);
   const upsertDebt = useUpsertDebt(budgetId);
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
+  const formatCents = useFormatCents();
+  const formatDate = useFormatDate();
 
   if (!budgetId) return <EmptyBudgetState />;
 
@@ -39,6 +42,8 @@ export default function DebtPage() {
           <p className="text-2xl font-semibold tabular-nums text-negative">{formatCents(-debts.data.totalDebtCents)}</p>
         </Card>
       )}
+
+      {(debts.data?.debts.length ?? 0) >= 2 && <DebtStrategyCard budgetId={budgetId} />}
 
       {(debts.data?.debts.length ?? 0) === 0 && undetailedDebtAccounts.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border-strong py-16 text-center">
@@ -93,6 +98,116 @@ export default function DebtPage() {
             setEditingAccountId(null);
           }}
         />
+      )}
+    </div>
+  );
+}
+
+/**
+ * "Which debt do I attack first?" — a question the per-debt cards above
+ * can't answer, since each of their projections assumes paying only its
+ * own minimum in isolation. Runs both standard strategies (snowball:
+ * smallest balance first, for quick wins that build momentum; avalanche:
+ * highest rate first, for the least total interest) against every debt
+ * at once and shows the actual difference between them.
+ */
+function DebtStrategyCard({ budgetId }: { budgetId: string }) {
+  const [extra, setExtra] = useState("0");
+  const extraCents = Math.max(0, Math.round((parseFloat(extra || "0") || 0) * 100));
+  const strategy = useDebtStrategy(budgetId, extraCents);
+  const formatCents = useFormatCents();
+  const formatDate = useFormatDate();
+
+  return (
+    <Card className="mb-6 p-4">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="font-semibold">Payoff strategy</h2>
+          <p className="text-sm text-foreground-muted">Which debt to attack first, snowball vs. avalanche.</p>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="strategy-extra" className="text-xs">
+            Extra per month (beyond minimums)
+          </Label>
+          <Input id="strategy-extra" inputMode="decimal" className="w-40" value={extra} onChange={(e) => setExtra(e.target.value)} />
+        </div>
+      </div>
+
+      {strategy.isLoading || !strategy.data ? (
+        <div className="h-32 animate-pulse rounded-lg bg-surface-muted" />
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <StrategyColumn
+            icon={Snowflake}
+            title="Snowball"
+            subtitle="Smallest balance first — quick wins."
+            result={strategy.data.snowball}
+            debtNames={strategy.data.debtNames}
+            recommended={strategy.data.snowball.totalInterestCents <= strategy.data.avalanche.totalInterestCents}
+            formatCents={formatCents}
+            formatDate={formatDate}
+          />
+          <StrategyColumn
+            icon={TrendingDown}
+            title="Avalanche"
+            subtitle="Highest interest rate first — least total interest."
+            result={strategy.data.avalanche}
+            debtNames={strategy.data.debtNames}
+            recommended={strategy.data.avalanche.totalInterestCents < strategy.data.snowball.totalInterestCents}
+            formatCents={formatCents}
+            formatDate={formatDate}
+          />
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function StrategyColumn({
+  icon: Icon,
+  title,
+  subtitle,
+  result,
+  debtNames,
+  recommended,
+  formatCents,
+  formatDate,
+}: {
+  icon: typeof Snowflake;
+  title: string;
+  subtitle: string;
+  result: DebtStrategyResult;
+  debtNames: Record<string, string>;
+  recommended: boolean;
+  formatCents: (cents: number) => string;
+  formatDate: (date: string, format?: "short" | "long") => string;
+}) {
+  return (
+    <div className={cn("rounded-lg border p-3", recommended ? "border-brand bg-brand-tint" : "border-border")}>
+      <div className="mb-2 flex items-center justify-between">
+        <span className="flex items-center gap-1.5 text-sm font-semibold">
+          <Icon className="size-4" /> {title}
+        </span>
+        {recommended && (
+          <span className="rounded-full bg-brand px-2 py-0.5 text-[10px] font-medium text-brand-foreground">Less interest</span>
+        )}
+      </div>
+      <p className="mb-2 text-xs text-foreground-muted">{subtitle}</p>
+      <ol className="mb-3 flex flex-col gap-1 text-sm">
+        {result.order.map((id, i) => (
+          <li key={id} className="flex items-center gap-2">
+            <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-surface-muted text-[10px] font-medium">{i + 1}</span>
+            {debtNames[id] ?? "Account"}
+          </li>
+        ))}
+      </ol>
+      {result.totalMonths > 0 ? (
+        <p className="text-sm">
+          Debt-free in <span className="font-medium">{result.totalMonths} mo</span>
+          {result.payoffDate && <> ({formatDate(result.payoffDate)})</>} · {formatCents(result.totalInterestCents)} total interest
+        </p>
+      ) : (
+        <p className="text-sm font-medium text-negative">These payments won&apos;t clear every balance — add more extra.</p>
       )}
     </div>
   );

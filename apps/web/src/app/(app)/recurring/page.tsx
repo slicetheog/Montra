@@ -10,7 +10,7 @@ import { AddRecurringDialog } from "@/components/recurring/add-recurring-dialog"
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { formatCents, formatDate } from "@/lib/utils";
+import { useFormatCents, useFormatDate } from "@/hooks/use-locale-format";
 import { toast } from "@/lib/toast";
 
 const FREQUENCY_LABELS: Record<string, string> = {
@@ -29,6 +29,8 @@ export default function RecurringPage() {
   const recurring = useRecurring(budgetId);
   const updateRecurring = useUpdateRecurring(budgetId);
   const deleteRecurring = useDeleteRecurring(budgetId);
+  const formatCents = useFormatCents();
+  const formatDate = useFormatDate();
 
   if (!budgetId) return <EmptyBudgetState />;
 

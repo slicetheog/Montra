@@ -2,22 +2,21 @@ import Link from "next/link";
 import { Wallet, PiggyBank, LineChart, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Logo } from "@/components/brand/logo";
 
 export default function LandingPage() {
   return (
     <div className="flex min-h-screen flex-col">
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-6">
         <div className="flex items-center gap-2 text-lg font-semibold">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-brand text-brand-foreground">
-            <Wallet className="size-4.5" />
-          </div>
+          <Logo />
           Montra
         </div>
         <nav className="flex items-center gap-3">
           <Button asChild variant="ghost" size="sm">
             <Link href="/login">Log in</Link>
           </Button>
-          <Button asChild size="sm">
+          <Button asChild variant="accent" size="sm">
             <Link href="/register">Get started free</Link>
           </Button>
         </nav>
@@ -25,7 +24,8 @@ export default function LandingPage() {
 
       <main id="main-content" className="flex-1">
         <section className="mx-auto flex w-full max-w-4xl flex-col items-center px-6 py-20 text-center">
-          <span className="rounded-full bg-brand-tint px-3 py-1 text-xs font-medium text-brand-strong">
+          <Logo size="lg" />
+          <span className="mt-6 rounded-full bg-brand-tint px-3 py-1 text-xs font-medium text-brand-strong">
             Free forever · No bank connection required
           </span>
           <h1 className="mt-6 text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">

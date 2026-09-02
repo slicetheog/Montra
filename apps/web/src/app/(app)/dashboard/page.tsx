@@ -9,12 +9,15 @@ import { EmptyBudgetState } from "@/components/layout/empty-budget-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { AdBanner } from "@/components/ads/ad-banner";
-import { formatCents, formatDate, daysUntil, cn } from "@/lib/utils";
+import { daysUntil, cn } from "@/lib/utils";
+import { useFormatCents, useFormatDate } from "@/hooks/use-locale-format";
 
 export default function DashboardPage() {
   const { budgetId, budget } = useCurrentBudget();
   const { data, isLoading } = useDashboard(budgetId);
   const { data: me } = useMe();
+  const formatCents = useFormatCents();
+  const formatDate = useFormatDate();
 
   if (!budgetId) return <EmptyBudgetState />;
   if (isLoading || !data) {
@@ -179,6 +182,8 @@ export default function DashboardPage() {
  * the nextPaycheck field's doc comment in use-dashboard.ts for why.
  */
 function NextPaycheckBanner({ nextPaycheck }: { nextPaycheck: DashboardSummary["nextPaycheck"] }) {
+  const formatCents = useFormatCents();
+  const formatDate = useFormatDate();
   if (!nextPaycheck) {
     return (
       <Link
@@ -228,6 +233,7 @@ function StatCard({
   tone?: "negative";
   href?: string;
 }) {
+  const formatCents = useFormatCents();
   const content = (
     <Card className="p-4">
       <div className="flex items-center gap-2 text-foreground-muted">

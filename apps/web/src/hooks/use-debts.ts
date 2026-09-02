@@ -19,6 +19,28 @@ export function useDebts(budgetId: string | null) {
   });
 }
 
+export interface DebtStrategyResult {
+  strategy: "SNOWBALL" | "AVALANCHE";
+  order: string[];
+  totalMonths: number;
+  payoffDate: string | null;
+  totalInterestCents: number;
+  perDebt: Record<string, { months: number; payoffDate: string | null; totalInterestCents: number }>;
+}
+
+export function useDebtStrategy(budgetId: string | null, extraMonthlyCents: number) {
+  return useQuery({
+    queryKey: ["debts", budgetId, "strategy", extraMonthlyCents],
+    queryFn: () =>
+      api.get<{ debtNames: Record<string, string>; snowball: DebtStrategyResult; avalanche: DebtStrategyResult }>(
+        `/api/budgets/${budgetId}/debts/strategy?extraMonthlyCents=${extraMonthlyCents}`,
+      ),
+    // Debt page only needs this once >= 2 debts exist — a single debt has
+    // only one possible "order," so there's nothing to compare.
+    enabled: Boolean(budgetId),
+  });
+}
+
 export function useUpsertDebt(budgetId: string | null) {
   const queryClient = useQueryClient();
   return useMutation({

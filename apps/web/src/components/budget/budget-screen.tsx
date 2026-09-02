@@ -9,7 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { CategoryRow, CategoryRowHeader } from "@/components/budget/category-row";
 import { MoveMoneyDialog } from "@/components/budget/move-money-dialog";
 import { useAssignMoney, useBudgetMonth, useMoveMoney } from "@/hooks/use-budget-month";
-import { formatCents, formatMonthLabel, cn } from "@/lib/utils";
+import { formatMonthLabel, cn } from "@/lib/utils";
+import { useFormatCents } from "@/hooks/use-locale-format";
 import { api } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 
@@ -23,6 +24,7 @@ export function BudgetScreen({ budgetId }: { budgetId: string }) {
   const [newName, setNewName] = useState("");
 
   const queryClient = useQueryClient();
+  const formatCents = useFormatCents();
   const { data, isLoading } = useBudgetMonth(budgetId, month);
   const assignMoney = useAssignMoney(budgetId, month);
   const moveMoney = useMoveMoney(budgetId, month);

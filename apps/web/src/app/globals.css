@@ -39,6 +39,8 @@
   --brand-tint: #e8f0fb;
 
   --accent: #d0011b;
+  --accent-strong: #99000f;
+  --accent-foreground: #ffffff;
   --accent-tint: #fbe4e6;
 
   /* Darkened from the initial picks: both landed just under (positive) or
@@ -74,6 +76,8 @@
   --brand-tint: #142a44;
 
   --accent: #ff8a80;
+  --accent-strong: #ffab9f;
+  --accent-foreground: #3a0805;
   --accent-tint: #3a1418;
 
   --positive: #4ecb9f;
@@ -101,6 +105,8 @@
   --color-brand-tint: var(--brand-tint);
 
   --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-foreground: var(--accent-foreground);
   --color-accent-tint: var(--accent-tint);
 
   --color-positive: var(--positive);
@@ -119,33 +125,60 @@
   --radius-xl: var(--radius-xl);
 }
 
-* {
-  border-color: var(--border);
+/*
+ * @layer base (never a bare rule) for anything that a Tailwind utility
+ * might legitimately need to override: per CSS cascade-layer rules, an
+ * unlayered rule beats every layered one regardless of specificity, and
+ * Tailwind's own utilities live in the `utilities` layer. A bare `* {
+ * border-color: var(--border) }` here previously did exactly that —
+ * silently overrode border-brand/border-accent/border-transparent/
+ * border-negative everywhere they were used. The same bug turned out to
+ * be broader: a bare `:focus-visible { outline: ... }` was equally
+ * unlayered, so it was *always* winning over the `focus-visible:
+ * outline-none` + ring-based custom focus style used across every input,
+ * checkbox, switch, tab, dialog, select, and dropdown trigger in the app
+ * — none of them ever actually got to replace the plain outline with
+ * their intended box-shadow ring; they just grew a second, redundant
+ * indicator on top of it. Both are base-layer defaults, so both belong
+ * here. (Audited the rest of this file too: ::selection and .skip-link
+ * are project-specific selectors Tailwind has no utility for, so they
+ * carry no such risk and are left as plain global rules below.)
+ */
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
 }
 
-html {
-  color-scheme: light;
-}
-
-html.dark {
-  color-scheme: dark;
-}
-
-body {
-  background: var(--color-background);
-  color: var(--color-foreground);
-  font-feature-settings: "cv11", "ss01";
-}
-
-/* Tabular figures anywhere money is displayed, so columns of numbers align. */
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
-}
-
-:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-  border-radius: 2px;
+/* Tabular figures anywhere money is displayed, so columns of numbers
+   align. (Tailwind ships an equivalent core utility, but not verified
+   present in every build config here, so this stays explicit rather than
+   assumed — @layer utilities so a future real conflict still resolves
+   the same way Tailwind's own utilities would.) */
+@layer utilities {
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
 }
 
 ::selection {

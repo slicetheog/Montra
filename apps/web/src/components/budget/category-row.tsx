@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { ArrowLeftRight } from "lucide-react";
 import { AssignCell } from "@/components/budget/assign-cell";
-import { formatCents, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useFormatCents } from "@/hooks/use-locale-format";
 import type { CategoryMonthView } from "@/hooks/use-budget-month";
 
 /**
@@ -21,6 +22,7 @@ export function CategoryRow({
   onAssign: (categoryId: string, cents: number) => Promise<unknown>;
   onMoveMoney: (categoryId: string) => void;
 }) {
+  const formatCents = useFormatCents();
   const availableTone =
     category.availableCents < 0 ? "text-negative" : category.availableCents === 0 ? "text-foreground-muted" : "text-positive";
 

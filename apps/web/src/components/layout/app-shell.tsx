@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Menu, Wallet, ChevronDown } from "lucide-react";
+import { LogOut, Menu, ChevronDown } from "lucide-react";
 import { useState } from "react";
+import { Logo } from "@/components/brand/logo";
 import { NAV_ITEMS } from "@/components/layout/nav-items";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { NotificationBell } from "@/components/layout/notification-bell";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import { useMe } from "@/hooks/use-me";
@@ -43,9 +45,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Desktop / tablet sidebar */}
       <aside className="hidden shrink-0 flex-col border-r border-border bg-surface md:flex md:w-16 lg:w-64">
         <div className="flex h-16 items-center gap-2 px-4 lg:px-5">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand text-brand-foreground">
-            <Wallet className="size-4.5" />
-          </div>
+          <Logo />
           <span className="hidden text-lg font-semibold lg:inline">Montra</span>
         </div>
         <nav className="flex flex-1 flex-col gap-1 px-2 py-2" aria-label="Main navigation">
@@ -59,11 +59,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 aria-current={active ? "page" : undefined}
                 title={item.label}
                 className={cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
+                  // A steady 3px left border in both states (only its color
+                  // changes) avoids a content shift when a link becomes
+                  // active — the red accent stripe pairs with the existing
+                  // blue tint so the active item reads as blue *and* red,
+                  // not blue alone.
+                  "flex items-center gap-3 rounded-md border-l-[3px] py-2.5 pr-3 pl-[9px] text-sm font-medium transition-colors",
                   "lg:justify-start justify-center",
                   active
-                    ? "bg-brand-tint text-brand-strong"
-                    : "text-foreground-muted hover:bg-surface-muted hover:text-foreground",
+                    ? "border-accent bg-brand-tint text-brand-strong"
+                    : "border-transparent text-foreground-muted hover:bg-surface-muted hover:text-foreground",
                 )}
               >
                 <Icon className="size-5 shrink-0" />
@@ -120,6 +125,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}
 
           <div className="flex items-center gap-3">
+            <NotificationBell />
             <ThemeToggle />
             <DropdownMenu>
               <DropdownMenuTrigger className="flex size-8 items-center justify-center rounded-full bg-brand-tint text-sm font-semibold text-brand-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">

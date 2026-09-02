@@ -22,7 +22,7 @@ export function useUpdateSettings() {
 export function useCreateBudget() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (name: string) => api.post("/api/budgets", { name }),
+    mutationFn: ({ name, currency }: { name: string; currency?: string }) => api.post("/api/budgets", { name, currency }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["me"] }),
   });
 }

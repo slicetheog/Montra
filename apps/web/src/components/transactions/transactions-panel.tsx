@@ -5,11 +5,12 @@ import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { formatCents, formatDate, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { CLEARED_STATUS_LABELS } from "@/lib/constants";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useCategories } from "@/hooks/use-categories";
 import { usePayees } from "@/hooks/use-payees";
+import { useFormatCents, useFormatDate } from "@/hooks/use-locale-format";
 import { useDeleteTransaction, useTransactions, type TransactionFilters, type TransactionView } from "@/hooks/use-transactions";
 import { TransactionFormDialog } from "@/components/transactions/transaction-form-dialog";
 import { toast } from "@/lib/toast";
@@ -28,6 +29,8 @@ export function TransactionsPanel({
   const [search, setSearch] = useState(filters.search ?? "");
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<TransactionView | null>(null);
+  const formatCents = useFormatCents();
+  const formatDate = useFormatDate();
 
   const accounts = useAccounts(budgetId);
   const categories = useCategories(budgetId);

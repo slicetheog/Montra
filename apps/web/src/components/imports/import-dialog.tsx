@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useCategories } from "@/hooks/use-categories";
 import { useCancelImport, useCommitImport, useImportPreview, useStageImport, useUpdateImportRow } from "@/hooks/use-imports";
-import { formatCents, formatDate } from "@/lib/utils";
+import { useFormatCents, useFormatDate } from "@/hooks/use-locale-format";
 import { toast } from "@/lib/toast";
 import { ApiRequestError } from "@/lib/api-client";
 import { parseDecimalToCents } from "@montra/domain";
@@ -28,6 +28,8 @@ export function ImportDialog({ open, onOpenChange, budgetId }: { open: boolean; 
   const [payeeCol, setPayeeCol] = useState("");
   const [amountCol, setAmountCol] = useState("");
   const [memoCol, setMemoCol] = useState("__none__");
+  const formatCents = useFormatCents();
+  const formatDate = useFormatDate();
   const [importId, setImportId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 

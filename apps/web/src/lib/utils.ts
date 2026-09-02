@@ -18,14 +18,30 @@ export function formatCents(
   }).format(amountCents / 100);
 }
 
-export function formatDate(date: string | Date, format: "short" | "long" = "short"): string {
+/**
+ * `pattern` is the Settings → Preferences → "Date format" value
+ * (MM/DD/YYYY, DD/MM/YYYY, or YYYY-MM-DD) — see useFormatDate(), which
+ * binds this to the viewer's actual saved preference. The default here
+ * ("MM/DD/YYYY") reproduces this function's original US-convention output
+ * exactly, so a call site that hasn't been migrated to the hook yet is
+ * unaffected. ISO (YYYY-MM-DD) always renders as plain digits, since that
+ * format doesn't have a "long, named-month" convention to begin with;
+ * MM/DD/YYYY and DD/MM/YYYY instead just reorder "Month Day, Year" vs.
+ * "Day Month Year" — friendlier than raw digits for a "short" label, and
+ * still the real distinction the setting promises.
+ */
+export function formatDate(date: string | Date, format: "short" | "long" = "short", pattern: string = "MM/DD/YYYY"): string {
   const d = typeof date === "string" ? new Date(date) : date;
-  return new Intl.DateTimeFormat("en-US", {
-    year: "numeric",
-    month: format === "long" ? "long" : "short",
-    day: "numeric",
-    timeZone: "UTC",
-  }).format(d);
+  if (pattern === "YYYY-MM-DD") {
+    const yyyy = d.getUTCFullYear();
+    const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const dd = String(d.getUTCDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  const day = d.getUTCDate();
+  const year = d.getUTCFullYear();
+  const month = new Intl.DateTimeFormat("en-US", { month: format === "long" ? "long" : "short", timeZone: "UTC" }).format(d);
+  return pattern === "DD/MM/YYYY" ? `${day} ${month} ${year}` : `${month} ${day}, ${year}`;
 }
 
 /**
