@@ -19,6 +19,8 @@ import { ImportDialog } from "@/components/imports/import-dialog";
 import { AdBanner } from "@/components/ads/ad-banner";
 import { api, ApiRequestError } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
+import { useAuditLog, humanizeAuditAction } from "@/hooks/use-audit-log";
+import { useFormatDate } from "@/hooks/use-locale-format";
 
 function SettingsInner() {
   const router = useRouter();
@@ -412,6 +414,8 @@ function SecuritySection({ onSignOutRedirect }: { onSignOutRedirect: () => void 
         </CardContent>
       </Card>
 
+      <RecentActivityCard />
+
       <Card className="border-negative/30">
         <CardHeader>
           <CardTitle className="text-negative">Delete account</CardTitle>
@@ -426,6 +430,43 @@ function SecuritySection({ onSignOutRedirect }: { onSignOutRedirect: () => void 
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/**
+ * Every action in the app already writes an AuditLog row (see
+ * server/services/audit.ts) — this is the first place any of it was ever
+ * read back. A plain "what happened, when" list, deliberately not
+ * exposing entityId/metadata (spec: store and show only what's needed to
+ * answer that question, nothing more sensitive).
+ */
+function RecentActivityCard() {
+  const { data: entries, isLoading } = useAuditLog();
+  const formatDate = useFormatDate();
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Recent activity</CardTitle>
+        <CardDescription>A log of changes made on your account, most recent first.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="h-24 animate-pulse rounded-lg bg-surface-muted" />
+        ) : !entries || entries.length === 0 ? (
+          <p className="text-sm text-foreground-muted">No activity recorded yet.</p>
+        ) : (
+          <ul className="flex max-h-72 flex-col gap-1 overflow-y-auto">
+            {entries.map((entry) => (
+              <li key={entry.id} className="flex items-center justify-between gap-3 border-b border-border py-2 text-sm last:border-0">
+                <span>{humanizeAuditAction(entry.action)}</span>
+                <span className="shrink-0 tabular-nums text-foreground-muted">{formatDate(entry.createdAt, "long")}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
