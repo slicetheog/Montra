@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider, THEME_INIT_SCRIPT } from "@/components/providers/theme-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { Toaster } from "@/components/ui/toaster";
+import { ServiceWorkerRegister } from "@/components/providers/service-worker-register";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -22,6 +23,11 @@ export const metadata: Metadata = {
   },
   description:
     "Montra is a free, privacy-respecting zero-based budgeting app. Plan every dollar, track every account, and see exactly what you can spend.",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Montra",
+  },
 };
 
 export const viewport: Viewport = {
@@ -57,6 +63,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Toaster />
           </ThemeProvider>
         </QueryProvider>
+        <ServiceWorkerRegister />
       </body>
     </html>
   );
