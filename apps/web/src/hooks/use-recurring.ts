@@ -24,6 +24,24 @@ export interface RecurringView {
   isActive: boolean;
 }
 
+export interface RecurringCandidate {
+  payeeId: string;
+  payeeName: string;
+  accountId: string;
+  amountCents: number;
+  frequency: "WEEKLY" | "BIWEEKLY" | "MONTHLY" | "YEARLY";
+  occurrences: number;
+  lastDate: string;
+}
+
+export function useRecurringSuggestions(budgetId: string | null) {
+  return useQuery({
+    queryKey: ["recurring", budgetId, "suggestions"],
+    queryFn: () => api.get<RecurringCandidate[]>(`/api/budgets/${budgetId}/recurring/suggestions`),
+    enabled: Boolean(budgetId),
+  });
+}
+
 export interface CreateRecurringInput {
   accountId: string;
   payeeName?: string;

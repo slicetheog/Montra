@@ -6,3 +6,4 @@ export * from "./recurrence";
 export * from "./reconciliation";
 export * from "./import";
 export * from "./debt-strategy";
+export * from "./recurring-detection";

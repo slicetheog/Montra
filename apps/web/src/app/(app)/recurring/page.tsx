@@ -2,9 +2,16 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, Repeat, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Repeat, Sparkles, Trash2, X } from "lucide-react";
 import { useCurrentBudget } from "@/hooks/use-current-budget";
-import { useDeleteRecurring, useRecurring, useUpdateRecurring } from "@/hooks/use-recurring";
+import {
+  useCreateRecurring,
+  useDeleteRecurring,
+  useRecurring,
+  useRecurringSuggestions,
+  useUpdateRecurring,
+  type RecurringCandidate,
+} from "@/hooks/use-recurring";
 import { EmptyBudgetState } from "@/components/layout/empty-budget-state";
 import { AddRecurringDialog } from "@/components/recurring/add-recurring-dialog";
 import { Button } from "@/components/ui/button";
@@ -56,6 +63,8 @@ export default function RecurringPage() {
         </Button>
       </div>
 
+      <RecurringSuggestions key={budgetId} budgetId={budgetId} />
+
       {recurring.isLoading ? (
         <div className="h-32 animate-pulse rounded-lg bg-surface-muted" />
       ) : (recurring.data?.length ?? 0) === 0 ? (
@@ -101,6 +110,107 @@ export default function RecurringPage() {
       )}
 
       <AddRecurringDialog open={addOpen} onOpenChange={setAddOpen} budgetId={budgetId} />
+    </div>
+  );
+}
+
+const SUGGESTION_FREQUENCY_LABELS: Record<RecurringCandidate["frequency"], string> = {
+  WEEKLY: "week",
+  BIWEEKLY: "2 weeks",
+  MONTHLY: "month",
+  YEARLY: "year",
+};
+
+function dismissedKey(budgetId: string) {
+  return `montra-dismissed-recurring-suggestions:${budgetId}`;
+}
+
+/**
+ * "This $15.49 Netflix charge has landed here every month, 4 times
+ * running — want to make it recurring?" — see
+ * server/services/recurring.ts's suggestRecurringTransactions() for the
+ * exact detection heuristic. Dismissal is local-only (localStorage, not
+ * a server flag): a real "no thanks, stop asking" preference isn't
+ * critical enough to justify a schema/table for it, and the suggestion
+ * naturally stops appearing anyway once the pattern is turned into (or
+ * covered by) a real recurring transaction.
+ */
+function readDismissed(budgetId: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(dismissedKey(budgetId));
+    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function RecurringSuggestions({ budgetId }: { budgetId: string }) {
+  const suggestions = useRecurringSuggestions(budgetId);
+  const createRecurring = useCreateRecurring(budgetId);
+  const formatCents = useFormatCents();
+  // Lazy initializer (not an effect + setState — the read is synchronous,
+  // there's nothing external to subscribe to) reads localStorage once per
+  // mount. A budget switch remounts this component naturally via
+  // `key={budgetId}` where it's rendered below, so this stays correct
+  // without needing to react to budgetId changing in place.
+  const [dismissed, setDismissed] = useState<Set<string>>(() => readDismissed(budgetId));
+
+  function candidateKey(c: RecurringCandidate) {
+    return `${c.payeeId}:${c.accountId}:${c.amountCents}`;
+  }
+
+  function dismiss(c: RecurringCandidate) {
+    const next = new Set(dismissed).add(candidateKey(c));
+    setDismissed(next);
+    try {
+      localStorage.setItem(dismissedKey(budgetId), JSON.stringify([...next]));
+    } catch {
+      // Best-effort — losing the dismissal just means it can resurface later, not a failure worth surfacing.
+    }
+  }
+
+  async function addCandidate(c: RecurringCandidate) {
+    try {
+      await createRecurring.mutateAsync({
+        accountId: c.accountId,
+        payeeName: c.payeeName,
+        amountCents: c.amountCents,
+        type: c.amountCents < 0 ? "EXPENSE" : "INCOME",
+        frequency: c.frequency,
+        startDate: c.lastDate.slice(0, 10),
+        autoCreate: false,
+      });
+      toast.success("Recurring transaction created.");
+      dismiss(c);
+    } catch {
+      toast.error("Couldn't create that. Please try again.");
+    }
+  }
+
+  const visible = (suggestions.data ?? []).filter((c) => !dismissed.has(candidateKey(c)));
+  if (visible.length === 0) return null;
+
+  return (
+    <div className="mb-4 flex flex-col gap-2">
+      {visible.slice(0, 3).map((c) => (
+        <Card key={candidateKey(c)} className="flex items-center gap-3 border-brand/30 bg-brand-tint p-3">
+          <Sparkles className="size-4 shrink-0 text-brand" />
+          <p className="min-w-0 flex-1 text-sm">
+            <span className="font-medium">{c.payeeName}</span> has charged {formatCents(Math.abs(c.amountCents))} every{" "}
+            {SUGGESTION_FREQUENCY_LABELS[c.frequency]} for the last {c.occurrences} times — make it recurring?
+          </p>
+          <Button size="sm" onClick={() => addCandidate(c)} disabled={createRecurring.isPending} className="shrink-0">
+            Add
+          </Button>
+          <button
+            onClick={() => dismiss(c)}
+            className="shrink-0 text-foreground-muted hover:text-foreground"
+            aria-label={`Dismiss suggestion for ${c.payeeName}`}
+          >
+            <X className="size-4" />
+          </button>
+        </Card>
+      ))}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@montra/db";
-import { computeNextOccurrence, type RecurrenceFrequency } from "@montra/domain";
+import { cents, computeNextOccurrence, detectRecurringCandidates, type RecurrenceFrequency } from "@montra/domain";
 import { NotFoundError, ValidationError } from "@/server/api-helpers";
 import { requireBudgetOwnership } from "@/server/services/budgets";
 import { requireAccountInBudget } from "@/server/services/accounts";
@@ -146,4 +146,40 @@ export async function listRecurring(userId: string, budgetId: string) {
       category: { select: { id: true, name: true } },
     },
   });
+}
+
+/**
+ * "This $15.49 Netflix charge shows up every month — want to make it
+ * recurring?" Scans the last 12 months of history for a fixed-price,
+ * regular-cadence pattern (see detectRecurringCandidates in the domain
+ * package for the exact heuristic) and drops anything already covered
+ * by an existing active recurring series for that same payee/account.
+ */
+export async function suggestRecurringTransactions(userId: string, budgetId: string) {
+  await requireBudgetOwnership(budgetId, userId);
+  const since = new Date();
+  since.setUTCMonth(since.getUTCMonth() - 12);
+
+  const transactions = await prisma.transaction.findMany({
+    where: { budgetId, date: { gte: since }, payeeId: { not: null }, type: { in: ["EXPENSE", "INCOME"] } },
+    select: { payeeId: true, payee: { select: { name: true } }, accountId: true, amountCents: true, date: true },
+  });
+
+  const candidates = detectRecurringCandidates(
+    transactions.map((t) => ({
+      payeeId: t.payeeId!,
+      payeeName: t.payee!.name,
+      accountId: t.accountId,
+      amountCents: cents(t.amountCents),
+      date: t.date,
+    })),
+  );
+
+  const existing = await prisma.recurringTransaction.findMany({
+    where: { budgetId, isActive: true },
+    select: { payeeId: true, accountId: true, amountCents: true },
+  });
+  const alreadyCovered = new Set(existing.map((r) => `${r.payeeId}:${r.accountId}:${r.amountCents}`));
+
+  return candidates.filter((c) => !alreadyCovered.has(`${c.payeeId}:${c.accountId}:${c.amountCents}`));
 }
