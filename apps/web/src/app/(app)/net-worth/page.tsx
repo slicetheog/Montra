@@ -6,12 +6,19 @@ import { useNetWorthHistory, useNetWorthNow } from "@/hooks/use-net-worth";
 import { EmptyBudgetState } from "@/components/layout/empty-budget-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ACCOUNT_TYPE_LABELS } from "@/lib/constants";
-import { formatCents } from "@/lib/utils";
+import { useFormatCents } from "@/hooks/use-locale-format";
+import { useResolvedTheme } from "@/components/providers/theme-provider";
+
+// Same blue as Reports' "Net cash flow" line — the dataviz palette's
+// slot-1 series color, light and dark steps.
+const LINE_COLOR = { light: "#2a78d6", dark: "#3987e5" };
 
 export default function NetWorthPage() {
   const { budgetId } = useCurrentBudget();
   const now = useNetWorthNow(budgetId);
   const history = useNetWorthHistory(budgetId, 12);
+  const formatCents = useFormatCents();
+  const lineColor = LINE_COLOR[useResolvedTheme()];
 
   if (!budgetId) return <EmptyBudgetState />;
   if (now.isLoading || !now.data) {
@@ -59,10 +66,7 @@ export default function NetWorthPage() {
                   formatter={(value: number) => formatCents(value)}
                   contentStyle={{ background: "var(--surface)", border: "1px solid var(--border-strong)", borderRadius: 8, fontSize: 12 }}
                 />
-                {/* Brand blue — the dataviz palette's validated categorical slot 1 (see palette.md),
-                    which reads at >=4.2:1 against both the light and dark chart surface without
-                    needing a separate per-theme value. */}
-                <Line type="monotone" dataKey="netWorthCents" name="Net worth" stroke="#2a78d6" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="netWorthCents" name="Net worth" stroke={lineColor} strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>

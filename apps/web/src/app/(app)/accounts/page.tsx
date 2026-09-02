@@ -12,7 +12,7 @@ import { AddAccountDialog } from "@/components/accounts/add-account-dialog";
 import { TransactionsPanel } from "@/components/transactions/transactions-panel";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { formatCents } from "@/lib/utils";
+import { useFormatCents } from "@/hooks/use-locale-format";
 import { ACCOUNT_TYPE_LABELS } from "@/lib/constants";
 
 function AccountsPageInner() {
@@ -74,6 +74,7 @@ function AccountsPageInner() {
 }
 
 function AccountGroup({ title, accounts }: { title: string; accounts: NonNullable<ReturnType<typeof useAccounts>["data"]> }) {
+  const formatCents = useFormatCents();
   if (accounts.length === 0) return null;
   return (
     <div>

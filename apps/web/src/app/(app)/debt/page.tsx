@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
-import { formatCents, formatDate } from "@/lib/utils";
+import { useFormatCents, useFormatDate } from "@/hooks/use-locale-format";
 import { parseDecimalToCents, MoneyError } from "@montra/domain";
 import { toast } from "@/lib/toast";
 
@@ -20,6 +20,8 @@ export default function DebtPage() {
   const accounts = useAccounts(budgetId);
   const upsertDebt = useUpsertDebt(budgetId);
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
+  const formatCents = useFormatCents();
+  const formatDate = useFormatDate();
 
   if (!budgetId) return <EmptyBudgetState />;
 

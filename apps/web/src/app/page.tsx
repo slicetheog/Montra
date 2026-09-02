@@ -2,16 +2,14 @@ import Link from "next/link";
 import { Wallet, PiggyBank, LineChart, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { LogoMark } from "@/components/brand/logo-mark";
+import { Logo } from "@/components/brand/logo";
 
 export default function LandingPage() {
   return (
     <div className="flex min-h-screen flex-col">
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-6">
         <div className="flex items-center gap-2 text-lg font-semibold">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-brand">
-            <LogoMark className="size-4.5" />
-          </div>
+          <Logo />
           Montra
         </div>
         <nav className="flex items-center gap-3">
@@ -26,9 +24,7 @@ export default function LandingPage() {
 
       <main id="main-content" className="flex-1">
         <section className="mx-auto flex w-full max-w-4xl flex-col items-center px-6 py-20 text-center">
-          <div className="flex size-16 items-center justify-center rounded-2xl bg-brand shadow-lg shadow-brand/20">
-            <LogoMark className="size-9" />
-          </div>
+          <Logo size="lg" />
           <span className="mt-6 rounded-full bg-brand-tint px-3 py-1 text-xs font-medium text-brand-strong">
             Free forever · No bank connection required
           </span>

@@ -83,6 +83,9 @@ function SettingsInner() {
                         ))}
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-foreground-muted">
+                      Applies to new budgets you create — an existing budget keeps the currency it was created with.
+                    </p>
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <Label>Date format</Label>
@@ -308,11 +311,16 @@ function BudgetsSection() {
         <ul className="flex flex-col gap-2">
           {me?.budgets.map((b) => (
             <li key={b.id} className="flex items-center justify-between rounded-md border border-border p-3">
-              <Input
-                defaultValue={b.name}
-                onBlur={(e) => e.target.value !== b.name && e.target.value.trim() && renameBudget.mutate({ id: b.id, name: e.target.value.trim() })}
-                className="max-w-xs border-none px-0 shadow-none focus-visible:ring-0"
-              />
+              <div className="flex min-w-0 items-center gap-2">
+                <Input
+                  defaultValue={b.name}
+                  onBlur={(e) => e.target.value !== b.name && e.target.value.trim() && renameBudget.mutate({ id: b.id, name: e.target.value.trim() })}
+                  className="max-w-xs border-none px-0 shadow-none focus-visible:ring-0"
+                />
+                <span className="shrink-0 rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-foreground-muted">
+                  {b.currency}
+                </span>
+              </div>
               <div className="flex gap-1">
                 <Button variant="ghost" size="icon" onClick={() => archiveBudget.mutate({ id: b.id, isArchived: true })} aria-label="Archive budget">
                   <Archive className="size-4" />
@@ -335,7 +343,7 @@ function BudgetsSection() {
             variant="outline"
             onClick={() => {
               if (!newName.trim()) return;
-              createBudget.mutate(newName.trim());
+              createBudget.mutate({ name: newName.trim(), currency: me?.settings?.currency });
               setNewName("");
             }}
           >

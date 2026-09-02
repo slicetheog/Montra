@@ -8,7 +8,7 @@ import { Input, Label, Textarea } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { parseDecimalToCents, MoneyError, splitEvenly } from "@montra/domain";
-import { formatCents } from "@/lib/utils";
+import { useFormatCents } from "@/hooks/use-locale-format";
 import { toast } from "@/lib/toast";
 import { ApiRequestError } from "@/lib/api-client";
 import { TRANSACTION_TYPE_LABELS } from "@/lib/constants";
@@ -56,6 +56,7 @@ function TransactionFormBody({
 }: FormBodyProps) {
   const createTransaction = useCreateTransaction(budgetId);
   const updateTransaction = useUpdateTransaction(budgetId);
+  const formatCents = useFormatCents();
 
   const [type, setType] = useState<CreateTransactionInput["type"]>(
     (editing?.type as CreateTransactionInput["type"]) ?? "EXPENSE",

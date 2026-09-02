@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { parseDecimalToCents, MoneyError } from "@montra/domain";
-import { formatCents } from "@/lib/utils";
+import { useFormatCents } from "@/hooks/use-locale-format";
 import { api, ApiRequestError } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 
@@ -27,6 +27,7 @@ export function ReconcileDialog({
   const [statementDate, setStatementDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [balance, setBalance] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const formatCents = useFormatCents();
 
   const reconcile = useMutation({
     mutationFn: (input: { statementDate: string; statementBalanceCents: number }) =>

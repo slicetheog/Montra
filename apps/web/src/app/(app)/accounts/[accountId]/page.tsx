@@ -9,7 +9,8 @@ import { TransactionsPanel } from "@/components/transactions/transactions-panel"
 import { EmptyBudgetState } from "@/components/layout/empty-budget-state";
 import { Button } from "@/components/ui/button";
 import { ACCOUNT_TYPE_LABELS } from "@/lib/constants";
-import { formatCents, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useFormatCents } from "@/hooks/use-locale-format";
 import { ReconcileDialog } from "@/components/accounts/reconcile-dialog";
 
 export default function AccountDetailPage({ params }: { params: Promise<{ accountId: string }> }) {
@@ -75,6 +76,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
 }
 
 function BalanceStat({ label, cents, emphasize }: { label: string; cents: number; emphasize?: boolean }) {
+  const formatCents = useFormatCents();
   return (
     <div className="rounded-lg border border-border bg-surface p-4">
       <p className="text-xs text-foreground-muted">{label}</p>

@@ -9,7 +9,8 @@ import { AddGoalDialog } from "@/components/goals/add-goal-dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { formatCents, formatDate, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useFormatCents, useFormatDate } from "@/hooks/use-locale-format";
 import { toast } from "@/lib/toast";
 
 export default function GoalsPage() {
@@ -17,6 +18,8 @@ export default function GoalsPage() {
   const [addOpen, setAddOpen] = useState(false);
   const goals = useGoals(budgetId);
   const deleteGoal = useDeleteGoal(budgetId);
+  const formatCents = useFormatCents();
+  const formatDate = useFormatDate();
 
   if (!budgetId) return <EmptyBudgetState />;
 

@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { parseDecimalToCents, MoneyError } from "@montra/domain";
-import { formatCents, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useFormatCents } from "@/hooks/use-locale-format";
 import { toast } from "@/lib/toast";
 
 export function AssignCell({
@@ -18,6 +19,7 @@ export function AssignCell({
   testId?: string;
 }) {
   const [editing, setEditing] = useState(false);
+  const formatCents = useFormatCents();
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
 

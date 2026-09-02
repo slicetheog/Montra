@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { LogOut, Menu, ChevronDown } from "lucide-react";
 import { useState } from "react";
-import { LogoMark } from "@/components/brand/logo-mark";
+import { Logo } from "@/components/brand/logo";
 import { NAV_ITEMS } from "@/components/layout/nav-items";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { cn } from "@/lib/utils";
@@ -44,9 +44,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Desktop / tablet sidebar */}
       <aside className="hidden shrink-0 flex-col border-r border-border bg-surface md:flex md:w-16 lg:w-64">
         <div className="flex h-16 items-center gap-2 px-4 lg:px-5">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand">
-            <LogoMark className="size-4.5" />
-          </div>
+          <Logo />
           <span className="hidden text-lg font-semibold lg:inline">Montra</span>
         </div>
         <nav className="flex flex-1 flex-col gap-1 px-2 py-2" aria-label="Main navigation">

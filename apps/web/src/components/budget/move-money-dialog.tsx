@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { parseDecimalToCents, MoneyError } from "@montra/domain";
-import { formatCents } from "@/lib/utils";
+import { useFormatCents } from "@/hooks/use-locale-format";
 import { toast } from "@/lib/toast";
 import type { CategoryGroupView } from "@/hooks/use-budget-month";
 import { ApiRequestError } from "@/lib/api-client";
@@ -28,6 +28,7 @@ export function MoveMoneyDialog({
   const [to, setTo] = useState("");
   const [amount, setAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const formatCents = useFormatCents();
   const [saving, setSaving] = useState(false);
 
   const allCategories = groups.flatMap((g) => g.categories.map((c) => ({ ...c, groupName: g.name })));

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, useSyncExternalStore } from "react";
 
 export type Theme = "light" | "dark" | "system";
 
@@ -13,9 +13,12 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
+function isDarkTheme(theme: Theme): boolean {
+  return theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+}
+
 function applyTheme(theme: Theme) {
-  const isDark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-  document.documentElement.classList.toggle("dark", isDark);
+  document.documentElement.classList.toggle("dark", isDarkTheme(theme));
 }
 
 /**
@@ -57,6 +60,35 @@ export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext);
   if (!ctx) throw new Error("useTheme must be used within ThemeProvider");
   return ctx;
+}
+
+function subscribeToSystemScheme(onChange: () => void) {
+  const media = window.matchMedia("(prefers-color-scheme: dark)");
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+
+/**
+ * The theme as actually rendered ("light" | "dark"), not the raw
+ * preference ("system" included) — for anything that needs to pick a
+ * concrete value itself, like a chart color that isn't a CSS variable
+ * (an inline SVG `stroke`/`fill` can't resolve `var(--brand)` the way a
+ * DOM element's className can). `useSyncExternalStore`, not an effect +
+ * setState, for the same reason as useHasHydrated() — see its own
+ * comment: that's the anti-pattern eslint-plugin-react-hooks's
+ * `set-state-in-effect` rule flags, and the primitive React itself
+ * recommends for "read live state from a browser API" instead.
+ */
+export function useResolvedTheme(): "light" | "dark" {
+  const { theme } = useTheme();
+  const systemIsDark = useSyncExternalStore(
+    subscribeToSystemScheme,
+    () => window.matchMedia("(prefers-color-scheme: dark)").matches,
+    () => false, // SSR snapshot — matches the light default from THEME_INIT_SCRIPT below
+  );
+  if (theme === "dark") return "dark";
+  if (theme === "light") return "light";
+  return systemIsDark ? "dark" : "light";
 }
 
 /** Source string for the blocking inline <script> — kept here so the logic lives in one place. */
