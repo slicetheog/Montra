@@ -154,6 +154,7 @@ model Budget {
   recurring      RecurringTransaction[]
   imports        Import[]
   assignments    Assignment[]
+  tags           Tag[]
 
   @@index([userId])
   @@map("budgets")
@@ -402,11 +403,42 @@ model Transaction {
   splits                TransactionSplit[]
   reconciliationAdjusts Reconciliation[]
   ccOffsetAssignments   Assignment[]
+  tags                  TransactionTag[]
 
   @@index([budgetId, date])
   @@index([accountId, date])
   @@index([payeeId])
   @@map("transactions")
+}
+
+/// Free-form, budget-scoped labels for cross-category grouping (e.g.
+/// "vacation," "deductible") — independent of the category hierarchy,
+/// which is about *where the money is budgeted*, not ad-hoc grouping.
+model Tag {
+  id        String   @id @default(cuid())
+  budgetId  String
+  budget    Budget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime @default(now())
+
+  transactions TransactionTag[]
+
+  @@unique([budgetId, name])
+  @@index([budgetId])
+  @@map("tags")
+}
+
+/// Many-to-many join: a transaction can carry several tags, a tag can
+/// apply to many transactions.
+model TransactionTag {
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  tagId         String
+  tag           Tag         @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([transactionId, tagId])
+  @@index([tagId])
+  @@map("transaction_tags")
 }
 
 /// Every transaction has >=1 split. Non-split transactions simply have one

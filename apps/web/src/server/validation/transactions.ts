@@ -46,6 +46,7 @@ export const listTransactionsQuerySchema = z.object({
   accountId: z.string().optional(),
   categoryId: z.string().optional(),
   payeeId: z.string().optional(),
+  tagId: z.string().optional(),
   search: z.string().optional(),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),

@@ -18,6 +18,7 @@ import type { PayeeView } from "@/hooks/use-payees";
 import {
   useCreateTransaction,
   useUpdateTransaction,
+  useSetTransactionTags,
   type CreateTransactionInput,
   type TransactionView,
 } from "@/hooks/use-transactions";
@@ -56,6 +57,7 @@ function TransactionFormBody({
 }: FormBodyProps) {
   const createTransaction = useCreateTransaction(budgetId);
   const updateTransaction = useUpdateTransaction(budgetId);
+  const setTransactionTags = useSetTransactionTags(budgetId);
   const formatCents = useFormatCents();
 
   const [type, setType] = useState<CreateTransactionInput["type"]>(
@@ -66,6 +68,7 @@ function TransactionFormBody({
   const [date, setDate] = useState(() => editing?.date.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
   const [payeeName, setPayeeName] = useState(editing?.payee?.name ?? "");
   const [memo, setMemo] = useState(editing?.memo ?? "");
+  const [tagsInput, setTagsInput] = useState((editing?.tags ?? []).map((t) => t.name).join(", "));
   const [cleared, setCleared] = useState(editing ? editing.cleared !== "UNCLEARED" : false);
   const [amount, setAmount] = useState(editing ? (Math.abs(editing.amountCents) / 100).toFixed(2) : "");
   const [splits, setSplits] = useState<SplitDraft[]>(
@@ -151,12 +154,22 @@ function TransactionFormBody({
         transferAccountId: isTransfer ? transferAccountId : undefined,
       };
 
+      let transactionId: string;
       if (editing) {
         await updateTransaction.mutateAsync({ id: editing.id, input: payload });
+        transactionId = editing.id;
         toast.success("Transaction updated.");
       } else {
-        await createTransaction.mutateAsync(payload);
+        const created = await createTransaction.mutateAsync(payload);
+        transactionId = created.id;
         toast.success("Transaction added.");
+      }
+      if (!isTransfer) {
+        const tagNames = tagsInput
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean);
+        await setTransactionTags.mutateAsync({ id: transactionId, tagNames });
       }
       onOpenChange(false);
     } catch (err) {
@@ -334,6 +347,19 @@ function TransactionFormBody({
             <Label htmlFor="txn-memo">Memo</Label>
             <Textarea id="txn-memo" value={memo} onChange={(e) => setMemo(e.target.value)} rows={2} />
           </div>
+
+          {!isTransfer && (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="txn-tags">Tags</Label>
+              <Input
+                id="txn-tags"
+                value={tagsInput}
+                onChange={(e) => setTagsInput(e.target.value)}
+                placeholder="vacation, deductible"
+              />
+              <p className="text-xs text-foreground-muted">Comma-separated — new ones are created automatically.</p>
+            </div>
+          )}
 
           <label className="flex items-center gap-2 text-sm">
             <Checkbox checked={cleared} onCheckedChange={(v) => setCleared(v === true)} />

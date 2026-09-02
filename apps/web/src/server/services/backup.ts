@@ -30,9 +30,10 @@ export async function exportBackup(userId: string) {
           accounts: { include: { debt: true } },
           payees: true,
           months: true,
-          transactions: { include: { splits: true } },
+          transactions: { include: { splits: true, tags: true } },
           goals: true,
           recurring: true,
+          tags: true,
         },
       },
     },
@@ -181,6 +182,12 @@ async function restoreOneBudget(userId: string, budget: any) {
         }
       }
 
+      const tagIdMap = new Map<string, string>();
+      for (const tag of budget.tags ?? []) {
+        const newTag = await tx.tag.create({ data: { budgetId: newBudget.id, name: tag.name } });
+        tagIdMap.set(tag.id, newTag.id);
+      }
+
       const monthIdMap = new Map<string, string>();
       for (const month of budget.months ?? []) {
         const newMonth = await tx.budgetMonth.create({ data: { budgetId: newBudget.id, month: new Date(month.month) } });
@@ -205,6 +212,12 @@ async function restoreOneBudget(userId: string, budget: any) {
           },
         });
         transactionIdMap.set(txn.id, newTxn.id);
+        const newTagIds = (txn.tags ?? [])
+          .map((t: { tagId: string }) => tagIdMap.get(t.tagId))
+          .filter((id: string | undefined): id is string => Boolean(id));
+        if (newTagIds.length > 0) {
+          await tx.transactionTag.createMany({ data: newTagIds.map((tagId: string) => ({ transactionId: newTxn.id, tagId })) });
+        }
         for (const split of txn.splits ?? []) {
           await tx.transactionSplit.create({
             data: {

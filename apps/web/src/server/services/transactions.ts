@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@montra/db";
 import type { Prisma } from "@prisma/client";
-import { assertSplitsSumToTotal, cents } from "@montra/domain";
+import { assertSplitsSumToTotal, cents, parseDecimalToCents, MoneyError } from "@montra/domain";
 import { ConflictError, NotFoundError, ValidationError } from "@/server/api-helpers";
 import { requireBudgetOwnership } from "@/server/services/budgets";
 import { requireAccountInBudget } from "@/server/services/accounts";
@@ -335,6 +335,7 @@ export interface ListTransactionsFilters {
   accountId?: string;
   categoryId?: string;
   payeeId?: string;
+  tagId?: string;
   search?: string;
   from?: Date;
   to?: Date;
@@ -342,9 +343,21 @@ export interface ListTransactionsFilters {
   limit?: number;
 }
 
+/** A search string that parses as a dollar amount ("80", "$80", "80.00") also matches that exact amount, either sign — someone searching "80" is as likely hunting a $80 charge as anything memo/payee-related. */
+function searchAmountVariants(search: string): number[] {
+  try {
+    const magnitude = Math.abs(parseDecimalToCents(search));
+    return magnitude === 0 ? [] : [magnitude, -magnitude];
+  } catch (err) {
+    if (err instanceof MoneyError) return [];
+    throw err;
+  }
+}
+
 export async function listTransactions(userId: string, budgetId: string, filters: ListTransactionsFilters) {
   await requireBudgetOwnership(budgetId, userId);
   const limit = filters.limit ?? 50;
+  const amountMatches = filters.search ? searchAmountVariants(filters.search) : [];
 
   const where: Prisma.TransactionWhereInput = {
     budgetId,
@@ -352,10 +365,12 @@ export async function listTransactions(userId: string, budgetId: string, filters
     payeeId: filters.payeeId,
     date: filters.from || filters.to ? { gte: filters.from, lte: filters.to } : undefined,
     splits: filters.categoryId ? { some: { categoryId: filters.categoryId } } : undefined,
+    tags: filters.tagId ? { some: { tagId: filters.tagId } } : undefined,
     OR: filters.search
       ? [
           { memo: { contains: filters.search, mode: "insensitive" } },
           { payee: { name: { contains: filters.search, mode: "insensitive" } } },
+          ...(amountMatches.length > 0 ? [{ amountCents: { in: amountMatches } }] : []),
         ]
       : undefined,
   };
@@ -370,21 +385,25 @@ export async function listTransactions(userId: string, budgetId: string, filters
       account: { select: { id: true, name: true, type: true } },
       transferAccount: { select: { id: true, name: true } },
       splits: { include: { category: { select: { id: true, name: true } } } },
+      tags: { include: { tag: { select: { id: true, name: true } } } },
     },
   });
 
-  const hasMore = rows.length > limit;
-  const items = hasMore ? rows.slice(0, limit) : rows;
+  const mapped = rows.map((r) => ({ ...r, tags: r.tags.map((t) => t.tag) }));
+  const hasMore = mapped.length > limit;
+  const items = hasMore ? mapped.slice(0, limit) : mapped;
   return { items, nextCursor: hasMore ? items[items.length - 1].id : null };
 }
 
 export async function getTransaction(userId: string, budgetId: string, transactionId: string) {
   await requireBudgetOwnership(budgetId, userId);
-  return prisma.transaction.findFirstOrThrow({
+  const row = await prisma.transaction.findFirstOrThrow({
     where: { id: transactionId, budgetId },
     include: {
       payee: { select: { id: true, name: true } },
       splits: { include: { category: { select: { id: true, name: true } } } },
+      tags: { include: { tag: { select: { id: true, name: true } } } },
     },
   });
+  return { ...row, tags: row.tags.map((t) => t.tag) };
 }

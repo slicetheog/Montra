@@ -5,11 +5,13 @@ import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { CLEARED_STATUS_LABELS } from "@/lib/constants";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useCategories } from "@/hooks/use-categories";
 import { usePayees } from "@/hooks/use-payees";
+import { useTags } from "@/hooks/use-tags";
 import { useFormatCents, useFormatDate } from "@/hooks/use-locale-format";
 import { useDeleteTransaction, useTransactions, type TransactionFilters, type TransactionView } from "@/hooks/use-transactions";
 import { TransactionFormDialog } from "@/components/transactions/transaction-form-dialog";
@@ -27,6 +29,7 @@ export function TransactionsPanel({
   emptyMessage?: string;
 }) {
   const [search, setSearch] = useState(filters.search ?? "");
+  const [tagId, setTagId] = useState<string | undefined>(filters.tagId);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<TransactionView | null>(null);
   const formatCents = useFormatCents();
@@ -35,7 +38,8 @@ export function TransactionsPanel({
   const accounts = useAccounts(budgetId);
   const categories = useCategories(budgetId);
   const payees = usePayees(budgetId);
-  const effectiveFilters = { ...filters, search: search || undefined };
+  const tags = useTags(budgetId);
+  const effectiveFilters = { ...filters, search: search || undefined, tagId };
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useTransactions(budgetId, effectiveFilters);
   const deleteTransaction = useDeleteTransaction(budgetId);
 
@@ -56,15 +60,32 @@ export function TransactionsPanel({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="relative w-56">
-          <Search className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-foreground-muted" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search memo or payee"
-            className="pl-8"
-            aria-label="Search transactions"
-          />
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative w-56">
+            <Search className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-foreground-muted" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search memo, payee, or amount"
+              className="pl-8"
+              aria-label="Search transactions"
+            />
+          </div>
+          {(tags.data?.length ?? 0) > 0 && (
+            <Select value={tagId ?? "all"} onValueChange={(v) => setTagId(v === "all" ? undefined : v)}>
+              <SelectTrigger className="w-32">
+                <SelectValue placeholder="Any tag" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Any tag</SelectItem>
+                {tags.data?.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
         <Button
           onClick={() => {
@@ -106,8 +127,15 @@ export function TransactionsPanel({
               className="grid w-full grid-cols-2 gap-1 border-b border-border bg-surface px-3 py-2.5 text-left text-sm last:border-b-0 hover:bg-surface-muted sm:grid-cols-[6rem_1fr_1fr_10rem_5rem_7rem] sm:items-center sm:gap-2"
             >
               <div className="text-foreground-muted">{formatDate(txn.date)}</div>
-              <div className="truncate font-medium">
-                {txn.payee?.name ?? (txn.type === "TRANSFER" ? `Transfer: ${txn.transferAccount?.name}` : "—")}
+              <div className="flex min-w-0 flex-wrap items-center gap-1">
+                <span className="truncate font-medium">
+                  {txn.payee?.name ?? (txn.type === "TRANSFER" ? `Transfer: ${txn.transferAccount?.name}` : "—")}
+                </span>
+                {txn.tags.map((t) => (
+                  <Badge key={t.id} variant="neutral" className="shrink-0">
+                    {t.name}
+                  </Badge>
+                ))}
               </div>
               <div className="truncate text-foreground-muted sm:block">
                 {txn.type === "TRANSFER"
