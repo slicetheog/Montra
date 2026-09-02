@@ -8,6 +8,7 @@ import { useState } from "react";
 import { Logo } from "@/components/brand/logo";
 import { NAV_ITEMS } from "@/components/layout/nav-items";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { NotificationBell } from "@/components/layout/notification-bell";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import { useMe } from "@/hooks/use-me";
@@ -124,6 +125,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}
 
           <div className="flex items-center gap-3">
+            <NotificationBell />
             <ThemeToggle />
             <DropdownMenu>
               <DropdownMenuTrigger className="flex size-8 items-center justify-center rounded-full bg-brand-tint text-sm font-semibold text-brand-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">
