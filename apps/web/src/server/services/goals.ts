@@ -1,16 +1,19 @@
 import "server-only";
 import { prisma } from "@montra/db";
-import { cents, computeDebtPayoffProjection, computeGoalProgress, computeRecommendedMonthlyContribution, computeEstimatedCompletionDate } from "@montra/domain";
+import { monthStart, cents, computeDebtPayoffProjection, computeGoalProgress, computeRecommendedMonthlyContribution, computeEstimatedCompletionDate } from "@montra/domain";
 import { NotFoundError, ValidationError } from "@/server/api-helpers";
 import { requireBudgetOwnership } from "@/server/services/budgets";
-import { getCategoryAvailable } from "@/server/services/budget";
+import { getCategoryAvailable, getMonthView } from "@/server/services/budget";
 import { logAudit } from "@/server/services/audit";
+
+export type GoalPriority = "HIGH" | "MEDIUM" | "LOW";
 
 export interface CreateGoalInput {
   name: string;
   type: "TARGET_BALANCE" | "MONTHLY_CONTRIBUTION" | "TARGET_DATE" | "DEBT_PAYOFF";
   categoryId?: string;
   accountId?: string;
+  priority?: GoalPriority;
   targetAmountCents?: number;
   targetDate?: Date;
   monthlyContributionCents?: number;
@@ -53,6 +56,7 @@ export async function createGoal(userId: string, budgetId: string, input: Create
       type: input.type,
       categoryId: input.categoryId,
       accountId: input.accountId,
+      priority: input.priority,
       targetAmountCents: input.targetAmountCents,
       targetDate: input.targetDate,
       monthlyContributionCents: input.monthlyContributionCents,
@@ -71,6 +75,7 @@ export async function updateGoal(userId: string, budgetId: string, goalId: strin
     where: { id: goalId },
     data: {
       name: input.name,
+      priority: input.priority,
       targetAmountCents: input.targetAmountCents,
       targetDate: input.targetDate,
       monthlyContributionCents: input.monthlyContributionCents,
@@ -165,4 +170,69 @@ export async function listGoals(userId: string, budgetId: string) {
       return { ...goal, currentAmountCents: currentCents, remainingCents: progress.remainingCents, progress, projection };
     }),
   );
+}
+
+const PRIORITY_RANK: Record<GoalPriority, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+
+/**
+ * "Your goals want to move $X/mo total but you only have $Y left over" —
+ * the same cross-check the spreadsheet's "Reality check" row runs, but
+ * priority-ordered rather than one pass/fail message: goals are queued
+ * highest-priority first against Ready to Assign (the same uncommitted
+ * pool "Available to Budget" shows), so it's clear not just *whether*
+ * everything fits but *which* goals do.
+ *
+ * Only MONTHLY_CONTRIBUTION and TARGET_DATE goals have a real "per month"
+ * number to compare — TARGET_BALANCE goals are funded whenever, on no
+ * fixed cadence, and DEBT_PAYOFF minimums are already counted as a bill
+ * elsewhere, so including either here would double-count against Ready
+ * to Assign.
+ */
+export async function getGoalFeasibility(userId: string, budgetId: string) {
+  await requireBudgetOwnership(budgetId, userId);
+  const now = new Date();
+  const [month, goals] = await Promise.all([
+    getMonthView(userId, budgetId, monthStart(now)),
+    prisma.goal.findMany({ where: { budgetId, type: { in: ["MONTHLY_CONTRIBUTION", "TARGET_DATE"] } } }),
+  ]);
+
+  const targets = goals.map((goal) => {
+    let monthlyTargetCents = 0;
+    if (goal.type === "MONTHLY_CONTRIBUTION") {
+      monthlyTargetCents = goal.monthlyContributionCents ?? 0;
+    } else if (goal.type === "TARGET_DATE" && goal.targetDate && goal.categoryId) {
+      // Recomputing rather than reusing listGoals's cached projection —
+      // this runs independently and goal.categoryId's current balance
+      // isn't fetched here, so a light re-derivation using 0 as a
+      // conservative floor keeps this self-contained. (Callers that
+      // already have listGoals's richer per-goal projection can compare
+      // against it directly; this endpoint is for the summary banner.)
+      monthlyTargetCents = Math.max(
+        0,
+        computeRecommendedMonthlyContribution({
+          targetCents: cents(goal.targetAmountCents ?? 0),
+          currentCents: cents(0),
+          targetDate: goal.targetDate,
+          asOf: now,
+        }),
+      );
+    }
+    return { id: goal.id, name: goal.name, priority: goal.priority as GoalPriority, monthlyTargetCents };
+  });
+
+  targets.sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]);
+
+  let cumulativeCents = 0;
+  const items = targets.map((t) => {
+    cumulativeCents += t.monthlyTargetCents;
+    return { ...t, cumulativeCents, fits: cumulativeCents <= month.readyToAssignCents };
+  });
+
+  const totalRequestedCents = cumulativeCents;
+  return {
+    availableCents: month.readyToAssignCents,
+    totalRequestedCents,
+    items,
+    isOverCommitted: totalRequestedCents > month.readyToAssignCents,
+  };
 }

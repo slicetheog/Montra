@@ -19,6 +19,8 @@ const GOAL_TYPE_LABELS = {
   DEBT_PAYOFF: "Pay off a debt",
 } as const;
 
+const PRIORITY_LABELS = { HIGH: "High", MEDIUM: "Medium", LOW: "Low" } as const;
+
 export function AddGoalDialog({ open, onOpenChange, budgetId }: { open: boolean; onOpenChange: (open: boolean) => void; budgetId: string }) {
   const createGoal = useCreateGoal(budgetId);
   const categories = useCategories(budgetId);
@@ -26,6 +28,7 @@ export function AddGoalDialog({ open, onOpenChange, budgetId }: { open: boolean;
 
   const [name, setName] = useState("");
   const [type, setType] = useState<keyof typeof GOAL_TYPE_LABELS>("TARGET_BALANCE");
+  const [priority, setPriority] = useState<keyof typeof PRIORITY_LABELS>("MEDIUM");
   const [categoryId, setCategoryId] = useState("");
   const [accountId, setAccountId] = useState("");
   const [targetAmount, setTargetAmount] = useState("");
@@ -53,6 +56,7 @@ export function AddGoalDialog({ open, onOpenChange, budgetId }: { open: boolean;
       await createGoal.mutateAsync({
         name: name.trim(),
         type,
+        priority,
         categoryId: type !== "DEBT_PAYOFF" ? categoryId || undefined : undefined,
         accountId: type === "DEBT_PAYOFF" ? accountId || undefined : undefined,
         targetAmountCents: targetAmount ? parseDecimalToCents(targetAmount) : undefined,
@@ -82,20 +86,37 @@ export function AddGoalDialog({ open, onOpenChange, budgetId }: { open: boolean;
             <Label htmlFor="goal-name">Name</Label>
             <Input id="goal-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Emergency Fund" autoFocus />
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Label>Goal type</Label>
-            <Select value={type} onValueChange={(v) => setType(v as keyof typeof GOAL_TYPE_LABELS)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(GOAL_TYPE_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label>Goal type</Label>
+              <Select value={type} onValueChange={(v) => setType(v as keyof typeof GOAL_TYPE_LABELS)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(GOAL_TYPE_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Priority</Label>
+              <Select value={priority} onValueChange={(v) => setPriority(v as keyof typeof PRIORITY_LABELS)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {type === "DEBT_PAYOFF" ? (

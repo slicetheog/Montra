@@ -14,6 +14,7 @@ import { toast } from "@/lib/toast";
 import { ApiRequestError } from "@/lib/api-client";
 
 const FREQUENCY_LABELS = {
+  ONE_TIME: "One-time (won't repeat)",
   DAILY: "Daily",
   WEEKLY: "Weekly",
   BIWEEKLY: "Every 2 weeks",
@@ -24,11 +25,14 @@ const FREQUENCY_LABELS = {
   CUSTOM: "Every N days",
 } as const;
 
-/** SEMI_MONTHLY isn't a real RecurrenceFrequency in the domain (see
- *  packages/domain/src/recurrence.ts) — a schedule like "1st & 15th" is
- *  represented as two independent MONTHLY recurring transactions, one per
- *  date, the same convenience the onboarding paycheck step offers. Every
- *  other value here maps straight to a real domain frequency. */
+/** SEMI_MONTHLY and ONE_TIME aren't real RecurrenceFrequency values in the
+ *  domain (see packages/domain/src/recurrence.ts) — UI sugar over it.
+ *  SEMI_MONTHLY ("1st & 15th") becomes two independent MONTHLY recurring
+ *  transactions, one per date, the same convenience the onboarding
+ *  paycheck step offers. ONE_TIME becomes a single MONTHLY series capped
+ *  at occurrencesLimit: 1 — the frequency itself is irrelevant once it can
+ *  only ever fire once. Every other value here maps straight to a real
+ *  domain frequency. */
 type UIFrequency = keyof typeof FREQUENCY_LABELS;
 
 export function AddRecurringDialog({ open, onOpenChange, budgetId }: { open: boolean; onOpenChange: (open: boolean) => void; budgetId: string }) {
@@ -47,6 +51,7 @@ export function AddRecurringDialog({ open, onOpenChange, budgetId }: { open: boo
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [startDate2, setStartDate2] = useState(""); // second payday, semi-monthly only
   const [autoCreate, setAutoCreate] = useState(true);
+  const [totalAmount, setTotalAmount] = useState(""); // optional, for a bounded/installment bill
   const [error, setError] = useState<string | null>(null);
 
   async function submit() {
@@ -56,6 +61,7 @@ export function AddRecurringDialog({ open, onOpenChange, budgetId }: { open: boo
     try {
       const magnitude = parseDecimalToCents(amount || "0");
       if (magnitude === 0) return setError("Enter an amount.");
+      const totalAmountCents = type === "EXPENSE" && totalAmount ? parseDecimalToCents(totalAmount) : undefined;
       const shared = {
         accountId,
         payeeName: payeeName || undefined,
@@ -63,6 +69,7 @@ export function AddRecurringDialog({ open, onOpenChange, budgetId }: { open: boo
         amountCents: type === "EXPENSE" ? -Math.abs(magnitude) : Math.abs(magnitude),
         type,
         autoCreate,
+        totalAmountCents,
       };
       if (frequency === "SEMI_MONTHLY") {
         // Two independent MONTHLY recurring transactions, one per date —
@@ -70,6 +77,8 @@ export function AddRecurringDialog({ open, onOpenChange, budgetId }: { open: boo
         for (const date of [startDate, startDate2]) {
           await createRecurring.mutateAsync({ ...shared, frequency: "MONTHLY", startDate: date });
         }
+      } else if (frequency === "ONE_TIME") {
+        await createRecurring.mutateAsync({ ...shared, frequency: "MONTHLY", occurrencesLimit: 1, startDate });
       } else {
         await createRecurring.mutateAsync({
           ...shared,
@@ -82,6 +91,7 @@ export function AddRecurringDialog({ open, onOpenChange, budgetId }: { open: boo
       onOpenChange(false);
       setPayeeName("");
       setAmount("");
+      setTotalAmount("");
     } catch (err) {
       if (err instanceof MoneyError) setError("Enter a valid dollar amount.");
       else setError(err instanceof ApiRequestError ? err.message : "Couldn't create that. Please try again.");
@@ -171,7 +181,7 @@ export function AddRecurringDialog({ open, onOpenChange, budgetId }: { open: boo
               </Select>
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="rec-start">{frequency === "SEMI_MONTHLY" ? "First date" : "Start date"}</Label>
+              <Label htmlFor="rec-start">{frequency === "SEMI_MONTHLY" ? "First date" : frequency === "ONE_TIME" ? "Due date" : "Start date"}</Label>
               <Input id="rec-start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
             </div>
           </div>
@@ -187,6 +197,16 @@ export function AddRecurringDialog({ open, onOpenChange, budgetId }: { open: boo
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="rec-interval">Every N {frequency === "CUSTOM" ? "days" : "months"}</Label>
               <Input id="rec-interval" type="number" min={1} className="w-24" value={intervalCount} onChange={(e) => setIntervalCount(e.target.value)} />
+            </div>
+          )}
+
+          {type === "EXPENSE" && frequency !== "SEMI_MONTHLY" && (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="rec-total">Total amount to pay off (optional)</Label>
+              <Input id="rec-total" inputMode="decimal" placeholder="e.g. a payment plan's full balance" value={totalAmount} onChange={(e) => setTotalAmount(e.target.value)} />
+              <p className="text-xs text-foreground-muted">
+                For a one-time bill paid in installments — we&apos;ll track progress toward this total from the payments you actually log.
+              </p>
             </div>
           )}
 

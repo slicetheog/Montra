@@ -14,6 +14,7 @@ export const createGoalSchema = z.object({
   type: z.enum(["TARGET_BALANCE", "MONTHLY_CONTRIBUTION", "TARGET_DATE", "DEBT_PAYOFF"]),
   categoryId: optionalId,
   accountId: optionalId,
+  priority: z.enum(["HIGH", "MEDIUM", "LOW"]).optional(),
   targetAmountCents: z.number().int().positive().optional(),
   targetDate: z.coerce.date().optional(),
   monthlyContributionCents: z.number().int().positive().optional(),

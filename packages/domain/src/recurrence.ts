@@ -1,3 +1,5 @@
+import { cents, type Cents } from "./money";
+
 export type RecurrenceFrequency =
   | "DAILY"
   | "WEEKLY"
@@ -38,6 +40,73 @@ export function computeNextOccurrence(
       d.setUTCDate(d.getUTCDate() + Math.max(1, intervalCount));
       return d;
   }
+}
+
+/**
+ * How many times a year a series with this cadence lands — the same idea
+ * as a budgeting spreadsheet's frequency-conversion table (a $600 annual
+ * bill "costs" $50/month, so every bill can be compared on equal footing
+ * regardless of how often it's actually paid). DAILY and CUSTOM use 365
+ * rather than 365.25 — close enough for a display estimate, and it keeps
+ * every case here an exact, auditable ratio.
+ */
+export function occurrencesPerYear(frequency: RecurrenceFrequency, intervalCount = 1): number {
+  const n = Math.max(1, intervalCount);
+  switch (frequency) {
+    case "DAILY":
+      return 365 / n;
+    case "WEEKLY":
+      return 52 / n;
+    case "BIWEEKLY":
+      return 26;
+    case "MONTHLY":
+      return 12;
+    case "EVERY_N_MONTHS":
+      return 12 / n;
+    case "YEARLY":
+      return 1;
+    case "CUSTOM":
+      return 365 / n;
+  }
+}
+
+/** Normalizes any cadence to a monthly-equivalent figure for apples-to-apples comparison. */
+export function monthlyEquivalentCents(amountCents: Cents, frequency: RecurrenceFrequency, intervalCount = 1): Cents {
+  return cents(Math.round((amountCents * occurrencesPerYear(frequency, intervalCount)) / 12));
+}
+
+/**
+ * Advances a schedule's next-occurrence pointer forward past any
+ * already-due dates without creating anything — for read-only
+ * projections (like the cash-flow forecast) so an overdue reminder-only
+ * series (autoCreate off, so nothing auto-advances it) still shows up
+ * starting from its next real future date instead of silently vanishing
+ * because nobody's acted on it yet. Mirrors
+ * services/recurring.ts's materializeDueRecurring loop, purely computed —
+ * it never writes anything back.
+ */
+export function catchUpSchedule(params: {
+  nextOccurrenceDate: Date;
+  frequency: RecurrenceFrequency;
+  intervalCount?: number;
+  occurrencesCreated?: number;
+  occurrencesLimit?: number | null;
+  endDate?: Date | null;
+  asOf: Date;
+  maxSteps?: number;
+}): { nextOccurrenceDate: Date; occurrencesCreated: number } {
+  const { frequency, intervalCount = 1, occurrencesLimit, endDate, asOf, maxSteps = 1000 } = params;
+  let cursor = params.nextOccurrenceDate;
+  let created = params.occurrencesCreated ?? 0;
+  let steps = 0;
+  while (cursor.getTime() < asOf.getTime() && steps < maxSteps) {
+    if (occurrencesLimit != null && created >= occurrencesLimit) break;
+    if (endDate && cursor.getTime() > endDate.getTime()) break;
+    created += 1;
+    cursor = computeNextOccurrence(cursor, frequency, intervalCount);
+    steps += 1;
+  }
+  return { nextOccurrenceDate: cursor, occurrencesCreated: created };
 }
 
 function addCalendarMonths(date: Date, count: number): Date {

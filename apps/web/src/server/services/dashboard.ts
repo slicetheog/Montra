@@ -1,22 +1,24 @@
 import "server-only";
 import { prisma } from "@montra/db";
-import { monthStart } from "@montra/domain";
+import { addMonths, cents, computeSpendingPace, monthStart } from "@montra/domain";
 import { requireBudgetOwnership } from "@/server/services/budgets";
 import { getMonthView } from "@/server/services/budget";
 import { getNetWorthNow } from "@/server/services/net-worth";
 import { listGoals } from "@/server/services/goals";
 import { listRecurring } from "@/server/services/recurring";
+import { listDebts } from "@/server/services/debts";
 
 export async function getDashboardSummary(userId: string, budgetId: string) {
   await requireBudgetOwnership(budgetId, userId);
   const now = new Date();
   const monthStartDate = monthStart(now);
 
-  const [netWorth, month, goals, recurring, recentTransactions, cashAccounts] = await Promise.all([
+  const [netWorth, month, goals, recurring, debts, recentTransactions, cashAccounts] = await Promise.all([
     getNetWorthNow(userId, budgetId),
     getMonthView(userId, budgetId, monthStartDate),
     listGoals(userId, budgetId),
     listRecurring(userId, budgetId),
+    listDebts(userId, budgetId),
     prisma.transaction.findMany({
       where: { budgetId },
       orderBy: [{ date: "desc" }, { id: "desc" }],
@@ -45,6 +47,35 @@ export async function getDashboardSummary(userId: string, budgetId: string) {
     _sum: { amountCents: true },
   });
 
+  // Burn-rate pace, scoped to *variable* spending only (no recurring
+  // series behind it — a plain bill is already scheduled, not something
+  // that paces up or down day to day). sourceRecurringId is only ever set
+  // by the recurring materializer/log-payment path (see
+  // services/recurring.ts), so its absence is exactly "logged by hand."
+  const prevMonthStart = addMonths(monthStartDate, -1);
+  const [variableThisMonthAgg, variableLastMonthAgg] = await Promise.all([
+    prisma.transaction.aggregate({
+      where: { budgetId, type: "EXPENSE", sourceRecurringId: null, date: { gte: monthStartDate } },
+      _sum: { amountCents: true },
+    }),
+    prisma.transaction.aggregate({
+      where: { budgetId, type: "EXPENSE", sourceRecurringId: null, date: { gte: prevMonthStart, lt: monthStartDate } },
+      _sum: { amountCents: true },
+    }),
+  ]);
+  const dayOfMonth = now.getUTCDate();
+  const daysInMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
+  // Too little signal in the first couple of days of the month to project meaningfully.
+  const spendingPace =
+    dayOfMonth >= 3
+      ? computeSpendingPace({
+          monthToDateSpendCents: cents(Math.abs(variableThisMonthAgg._sum.amountCents ?? 0)),
+          dayOfMonth,
+          daysInMonth,
+          lastMonthSpendCents: cents(Math.abs(variableLastMonthAgg._sum.amountCents ?? 0)),
+        })
+      : null;
+
   const upcoming = recurring
     .filter((r) => r.isActive)
     .sort((a, b) => a.nextOccurrenceDate.getTime() - b.nextOccurrenceDate.getTime())
@@ -60,6 +91,16 @@ export async function getDashboardSummary(userId: string, budgetId: string) {
     .filter((r) => r.isActive && r.type === "INCOME")
     .sort((a, b) => a.nextOccurrenceDate.getTime() - b.nextOccurrenceDate.getTime())[0];
 
+  // Headline debt-interest cost — the same per-debt projection the Debt
+  // page already shows, just summed here so it's visible without a click.
+  // A debt whose current minimum will never clear it (months: -1)
+  // contributes 0 rather than a misleading number; anyWontClear flags
+  // that case separately so the copy can say so.
+  const debtInterestProjection = {
+    totalInterestCents: debts.reduce((sum, d) => sum + (d.projection.months >= 0 ? d.projection.totalInterestCents : 0), 0),
+    anyWontClear: debts.some((d) => d.projection.months < 0),
+  };
+
   return {
     nextPaycheck: nextPaycheck
       ? {
@@ -72,6 +113,8 @@ export async function getDashboardSummary(userId: string, budgetId: string) {
     netWorthCents: netWorth.netWorthCents,
     cashCents,
     totalDebtCents: netWorth.totalLiabilitiesCents,
+    debtInterestProjection,
+    spendingPace,
     monthIncomeCents: monthIncomeAgg._sum.amountCents ?? 0,
     monthSpendingCents: Math.abs(monthSpendingAgg._sum.amountCents ?? 0),
     readyToAssignCents: month.readyToAssignCents,

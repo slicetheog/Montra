@@ -26,12 +26,14 @@ export interface TransactionView {
   cleared: "UNCLEARED" | "CLEARED" | "RECONCILED";
   isSplit: boolean;
   splits: SplitView[];
+  tags: { id: string; name: string }[];
 }
 
 export interface TransactionFilters {
   accountId?: string;
   categoryId?: string;
   payeeId?: string;
+  tagId?: string;
   search?: string;
   from?: string;
   to?: string;
@@ -63,6 +65,7 @@ function filtersToParams(filters: TransactionFilters, cursor?: string) {
   if (filters.accountId) params.set("accountId", filters.accountId);
   if (filters.categoryId) params.set("categoryId", filters.categoryId);
   if (filters.payeeId) params.set("payeeId", filters.payeeId);
+  if (filters.tagId) params.set("tagId", filters.tagId);
   if (filters.search) params.set("search", filters.search);
   if (filters.from) params.set("from", filters.from);
   if (filters.to) params.set("to", filters.to);
@@ -83,7 +86,8 @@ export function useTransactions(budgetId: string | null, filters: TransactionFil
   });
 }
 
-function invalidateAfterMutation(queryClient: ReturnType<typeof useQueryClient>, budgetId: string | null) {
+/** Shared by anything that creates real transactions outside this file's own mutations (e.g. logging a payment against a recurring series). */
+export function invalidateAfterMutation(queryClient: ReturnType<typeof useQueryClient>, budgetId: string | null) {
   queryClient.invalidateQueries({ queryKey: ["transactions", budgetId] });
   queryClient.invalidateQueries({ queryKey: ["accounts", budgetId] });
   queryClient.invalidateQueries({ queryKey: ["budget-month", budgetId] });
@@ -95,7 +99,11 @@ function invalidateAfterMutation(queryClient: ReturnType<typeof useQueryClient>,
 export function useCreateTransaction(budgetId: string | null) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: CreateTransactionInput) => api.post(`/api/budgets/${budgetId}/transactions`, input),
+    // Only { id } is guaranteed on the create response (the created row
+    // has no relations loaded) — typed narrowly rather than as the full
+    // TransactionView so nothing downstream assumes fields that aren't
+    // actually there.
+    mutationFn: (input: CreateTransactionInput) => api.post<{ id: string }>(`/api/budgets/${budgetId}/transactions`, input),
     onSuccess: () => invalidateAfterMutation(queryClient, budgetId),
   });
 }
@@ -114,5 +122,17 @@ export function useDeleteTransaction(budgetId: string | null) {
   return useMutation({
     mutationFn: (id: string) => api.del(`/api/budgets/${budgetId}/transactions/${id}`),
     onSuccess: () => invalidateAfterMutation(queryClient, budgetId),
+  });
+}
+
+export function useSetTransactionTags(budgetId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, tagNames }: { id: string; tagNames: string[] }) =>
+      api.put(`/api/budgets/${budgetId}/transactions/${id}/tags`, { tagNames }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions", budgetId] });
+      queryClient.invalidateQueries({ queryKey: ["tags", budgetId] });
+    },
   });
 }

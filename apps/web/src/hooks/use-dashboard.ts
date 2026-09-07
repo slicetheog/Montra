@@ -12,6 +12,20 @@ export interface DashboardSummary {
   readyToAssignCents: number;
   totalAssignedCents: number;
   totalAvailableCents: number;
+  /** Headline debt-interest cost — see server/services/dashboard.ts's doc comment. */
+  debtInterestProjection: { totalInterestCents: number; anyWontClear: boolean };
+  /**
+   * Linear burn-rate projection for *variable* spending this month
+   * (transactions with no recurring series behind them — plain bills are
+   * excluded since they're already scheduled, not something that paces up
+   * or down). Null before day 3 of the month or with no spending history
+   * to compare against — too little signal yet to project from.
+   */
+  spendingPace: {
+    averagePerDayCents: number;
+    projectedFullMonthCents: number;
+    changeVsLastMonth: number | null;
+  } | null;
   /**
    * The soonest scheduled paycheck, if one's been set up (onboarding, or a
    * manually created income recurring transaction) — a forecast for

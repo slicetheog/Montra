@@ -149,7 +149,7 @@ test("full budgeting lifecycle", async ({ page }) => {
   await page.getByRole("button", { name: "New goal" }).click();
   const goalDialog = page.getByRole("dialog", { name: "New goal" });
   await goalDialog.getByLabel("Name").fill("Emergency Fund");
-  await goalDialog.getByRole("combobox").nth(1).click(); // Category
+  await goalDialog.getByRole("combobox").nth(2).click(); // Category (Type is nth(0), Priority is nth(1))
   await page.getByRole("option", { name: /Groceries/ }).click();
   await goalDialog.getByLabel(/Target amount/).fill("1000");
   await goalDialog.getByRole("button", { name: "Create goal" }).click();
@@ -163,10 +163,18 @@ test("full budgeting lifecycle", async ({ page }) => {
   await recurDialog.getByRole("combobox").nth(1).click(); // Account (Type is nth(0))
   await page.getByRole("option", { name: "Checking" }).click();
   await recurDialog.getByLabel("Payee").fill("Netflix");
-  await recurDialog.getByLabel("Amount").fill("15.49");
+  await recurDialog.getByLabel("Amount", { exact: true }).fill("15.49");
   await recurDialog.getByRole("button", { name: "Create" }).click();
   await expect(page.getByText("Recurring transaction created.")).toBeVisible();
   await expect(page.getByText("Netflix")).toBeVisible();
+
+  // 12c. Cash flow forecast reflects the paycheck schedule + Netflix bill
+  await page.goto("/cash-flow");
+  await expect(page.getByRole("heading", { name: "Cash Flow" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Projected balance" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Pay periods" })).toBeVisible();
+  // At least one pay period row, bounded by the twice-a-month paycheck.
+  await expect(page.getByText(/OK|Short/).first()).toBeVisible();
 
   // 13. Import a CSV
   const csvPath = path.join(os.tmpdir(), `e2e-import-${unique}.csv`);
