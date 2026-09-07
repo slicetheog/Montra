@@ -75,6 +75,40 @@ export function monthlyEquivalentCents(amountCents: Cents, frequency: Recurrence
   return cents(Math.round((amountCents * occurrencesPerYear(frequency, intervalCount)) / 12));
 }
 
+/**
+ * Advances a schedule's next-occurrence pointer forward past any
+ * already-due dates without creating anything — for read-only
+ * projections (like the cash-flow forecast) so an overdue reminder-only
+ * series (autoCreate off, so nothing auto-advances it) still shows up
+ * starting from its next real future date instead of silently vanishing
+ * because nobody's acted on it yet. Mirrors
+ * services/recurring.ts's materializeDueRecurring loop, purely computed —
+ * it never writes anything back.
+ */
+export function catchUpSchedule(params: {
+  nextOccurrenceDate: Date;
+  frequency: RecurrenceFrequency;
+  intervalCount?: number;
+  occurrencesCreated?: number;
+  occurrencesLimit?: number | null;
+  endDate?: Date | null;
+  asOf: Date;
+  maxSteps?: number;
+}): { nextOccurrenceDate: Date; occurrencesCreated: number } {
+  const { frequency, intervalCount = 1, occurrencesLimit, endDate, asOf, maxSteps = 1000 } = params;
+  let cursor = params.nextOccurrenceDate;
+  let created = params.occurrencesCreated ?? 0;
+  let steps = 0;
+  while (cursor.getTime() < asOf.getTime() && steps < maxSteps) {
+    if (occurrencesLimit != null && created >= occurrencesLimit) break;
+    if (endDate && cursor.getTime() > endDate.getTime()) break;
+    created += 1;
+    cursor = computeNextOccurrence(cursor, frequency, intervalCount);
+    steps += 1;
+  }
+  return { nextOccurrenceDate: cursor, occurrencesCreated: created };
+}
+
 function addCalendarMonths(date: Date, count: number): Date {
   const day = date.getUTCDate();
   const target = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + count, 1));

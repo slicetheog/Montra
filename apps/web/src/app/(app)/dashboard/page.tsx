@@ -186,9 +186,14 @@ export default function DashboardPage() {
                   ))}
                 </ul>
               )}
-              <Link href="/recurring" className="mt-3 inline-block text-sm font-medium text-brand underline underline-offset-2">
-                Manage recurring transactions →
-              </Link>
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+                <Link href="/recurring" className="text-sm font-medium text-brand underline underline-offset-2">
+                  Manage recurring transactions →
+                </Link>
+                <Link href="/cash-flow" className="text-sm font-medium text-brand underline underline-offset-2">
+                  View cash flow forecast →
+                </Link>
+              </div>
             </CardContent>
           </Card>
         </div>
