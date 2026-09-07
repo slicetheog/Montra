@@ -9,6 +9,7 @@ import { EmptyBudgetState } from "@/components/layout/empty-budget-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { AdBanner } from "@/components/ads/ad-banner";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { daysUntil, cn } from "@/lib/utils";
 import { useFormatCents, useFormatDate } from "@/hooks/use-locale-format";
 
@@ -43,21 +44,38 @@ export default function DashboardPage() {
         <NextPaycheckBanner nextPaycheck={data.nextPaycheck} />
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatCard icon={TrendingUp} label="Net worth" cents={data.netWorthCents} />
-          <StatCard icon={Wallet} label="Cash" cents={data.cashCents} />
+          <StatCard
+            icon={TrendingUp}
+            label="Net worth"
+            cents={data.netWorthCents}
+            tooltip="Total assets minus total liabilities, across every account — on-budget and off-budget alike."
+          />
+          <StatCard
+            icon={Wallet}
+            label="Cash"
+            cents={data.cashCents}
+            tooltip="The combined real balance of your checking, savings, and cash accounts right now."
+          />
           <StatCard
             icon={TrendingDown}
             label="Debt"
             cents={-data.totalDebtCents}
             tone={data.totalDebtCents > 0 ? "negative" : undefined}
             href={data.totalDebtCents > 0 ? "/debt" : undefined}
+            tooltip="What you currently owe across credit cards and loans, plus the interest you're projected to pay at your current payments."
             caption={
               data.debtInterestProjection.totalInterestCents > 0
                 ? `≈ ${formatCents(data.debtInterestProjection.totalInterestCents)} interest ahead`
                 : undefined
             }
           />
-          <StatCard icon={PiggyBank} label="Available to budget" cents={data.readyToAssignCents} href="/budget" />
+          <StatCard
+            icon={PiggyBank}
+            label="Available to budget"
+            cents={data.readyToAssignCents}
+            href="/budget"
+            tooltip="Income you haven't assigned a job to yet. In zero-based budgeting the goal is to keep this at zero by giving every dollar a category."
+          />
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -88,7 +106,9 @@ export default function DashboardPage() {
                   )}
                 </div>
                 <div>
-                  <p className="text-xs text-foreground-muted">Assigned</p>
+                  <p className="flex items-center gap-1 text-xs text-foreground-muted">
+                    Assigned <InfoTooltip content="Total assigned to categories this month, across your whole budget." />
+                  </p>
                   <p className="text-lg font-semibold tabular-nums">{formatCents(data.totalAssignedCents)}</p>
                 </div>
               </div>
@@ -255,6 +275,7 @@ function StatCard({
   tone,
   href,
   caption,
+  tooltip,
 }: {
   icon: typeof Wallet;
   label: string;
@@ -262,10 +283,15 @@ function StatCard({
   tone?: "negative";
   href?: string;
   caption?: string;
+  /** Rendered as a native title attribute rather than InfoTooltip — these
+   *  cards are often wrapped in a Link, and a real interactive tooltip
+   *  trigger can't nest inside an anchor without producing invalid,
+   *  confusing-to-assistive-tech markup. */
+  tooltip?: string;
 }) {
   const formatCents = useFormatCents();
   const content = (
-    <Card className="p-4">
+    <Card className="p-4" title={tooltip}>
       <div className="flex items-center gap-2 text-foreground-muted">
         <Icon className="size-4" />
         <span className="text-xs">{label}</span>

@@ -4,6 +4,7 @@ import { monthStart, cents, computeDebtPayoffProjection, computeGoalProgress, co
 import { NotFoundError, ValidationError } from "@/server/api-helpers";
 import { requireBudgetOwnership } from "@/server/services/budgets";
 import { getCategoryAvailable, getMonthView } from "@/server/services/budget";
+import { resolveFirstDayOfMonth } from "@/server/services/settings";
 import { logAudit } from "@/server/services/audit";
 
 export type GoalPriority = "HIGH" | "MEDIUM" | "LOW";
@@ -105,6 +106,7 @@ export async function listGoals(userId: string, budgetId: string) {
   });
 
   const now = new Date();
+  const firstDayOfMonth = await resolveFirstDayOfMonth(userId);
 
   return Promise.all(
     goals.map(async (goal) => {
@@ -133,13 +135,13 @@ export async function listGoals(userId: string, budgetId: string) {
         return { ...goal, currentAmountCents: 0, remainingCents: goal.targetAmountCents ?? 0, progress: null, projection: null };
       }
 
-      const currentCents = await getCategoryAvailable(prisma, goal.categoryId, now);
+      const currentCents = await getCategoryAvailable(prisma, goal.categoryId, now, firstDayOfMonth);
 
       if (goal.type === "MONTHLY_CONTRIBUTION") {
         const thisMonthAssigned = await prisma.assignment.aggregate({
           where: {
             categoryId: goal.categoryId,
-            budgetMonth: { month: { gte: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)) } },
+            budgetMonth: { month: { gte: monthStart(now, firstDayOfMonth) } },
           },
           _sum: { amountCents: true },
         });
@@ -192,7 +194,12 @@ export async function getGoalFeasibility(userId: string, budgetId: string) {
   await requireBudgetOwnership(budgetId, userId);
   const now = new Date();
   const [month, goals] = await Promise.all([
-    getMonthView(userId, budgetId, monthStart(now)),
+    // Raw `now`, not a pre-normalized monthStart(now) — getMonthView
+    // resolves the *real* current period itself (via the user's own
+    // firstDayOfMonth), and pre-rounding to a calendar-month-start here
+    // first would feed it the wrong day to work from whenever that
+    // setting isn't 1.
+    getMonthView(userId, budgetId, now),
     prisma.goal.findMany({ where: { budgetId, type: { in: ["MONTHLY_CONTRIBUTION", "TARGET_DATE"] } } }),
   ]);
 

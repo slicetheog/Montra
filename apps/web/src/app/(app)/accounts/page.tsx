@@ -12,6 +12,7 @@ import { AddAccountDialog } from "@/components/accounts/add-account-dialog";
 import { TransactionsPanel } from "@/components/transactions/transactions-panel";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useFormatCents } from "@/hooks/use-locale-format";
 import { ACCOUNT_TYPE_LABELS } from "@/lib/constants";
 
@@ -78,7 +79,16 @@ function AccountGroup({ title, accounts }: { title: string; accounts: NonNullabl
   if (accounts.length === 0) return null;
   return (
     <div>
-      <h2 className="mb-2 text-sm font-medium text-foreground-muted">{title}</h2>
+      <h2 className="mb-2 flex items-center gap-1.5 text-sm font-medium text-foreground-muted">
+        {title}
+        <InfoTooltip
+          content={
+            title === "Budget accounts"
+              ? "Income landing here feeds Available to Budget — this is the money your budget is actually about."
+              : "Included in Net Worth, but never counted toward Available to Budget — for accounts like investments you're not actively budgeting."
+          }
+        />
+      </h2>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {accounts.map((account) => (
           <Link key={account.id} href={`/accounts/${account.id}`}>

@@ -221,6 +221,14 @@ test("full budgeting lifecycle", async ({ page }) => {
   await reconcileDialog.getByRole("button", { name: "Reconcile" }).click();
   await expect(page.getByText("Account reconciled.")).toBeVisible();
 
+  // 14b. Help center: browse a topic, then search across all of them
+  await page.goto("/help");
+  await expect(page.getByRole("heading", { name: "Help Center" })).toBeVisible();
+  await page.getByRole("button", { name: "Recurring Transactions" }).click();
+  await expect(page.getByText("What's the difference between Auto-create on and off?")).toBeVisible();
+  await page.getByLabel("Search help articles").fill("available to budget");
+  await expect(page.getByText(/result.*for/)).toBeVisible();
+
   // 15. Log out
   await page.getByRole("button", { name: "Log out" }).click();
   await page.waitForURL("**/login", { waitUntil: "commit" });
@@ -244,6 +252,37 @@ test("full budgeting lifecycle", async ({ page }) => {
   await expect(page.getByText("Gas Station").and(page.locator(":visible"))).toBeVisible();
   await expect(page.getByText("Whole Foods").and(page.locator(":visible"))).toBeVisible();
   await expect(page.getByText("Employer").and(page.locator(":visible"))).toBeVisible();
+
+  // 18. A custom "First day of month" (Settings -> Preferences) actually
+  // moves the Budget screen's periods, not just a decorative setting: a
+  // "today" before the configured day must resolve to the period that
+  // started *last* calendar month (see @montra/domain's monthStart doc
+  // comment), and stepping forward/back must move by whole periods. The
+  // expected label is computed the same way the app does, not hardcoded,
+  // so this stays correct regardless of what day it is when the suite
+  // actually runs — including the last few days of a month, where
+  // "today" can be >= every allowed firstDayOfMonth value.
+  const firstDayOfMonth = 15;
+  await page.goto("/settings?tab=preferences");
+  const settingsSaved = page.waitForResponse((r) => r.url().includes("/api/settings") && r.request().method() === "PATCH");
+  await page.getByLabel("First day of month (for budget periods)").fill(String(firstDayOfMonth));
+  await settingsSaved;
+
+  const now = new Date();
+  const periodStart = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + (now.getUTCDate() < firstDayOfMonth ? -1 : 0), firstDayOfMonth),
+  );
+  const labelFor = (d: Date) => new Intl.DateTimeFormat("en-US", { year: "numeric", month: "long", timeZone: "UTC" }).format(d);
+
+  await page.goto("/budget");
+  await expect(page.getByText(labelFor(periodStart))).toBeVisible();
+
+  // Stepping forward moves by exactly one whole period, and back again returns to it.
+  const nextPeriod = new Date(Date.UTC(periodStart.getUTCFullYear(), periodStart.getUTCMonth() + 1, firstDayOfMonth));
+  await page.getByRole("button", { name: "Next month" }).click();
+  await expect(page.getByText(labelFor(nextPeriod))).toBeVisible();
+  await page.getByRole("button", { name: "Previous month" }).click();
+  await expect(page.getByText(labelFor(periodStart))).toBeVisible();
 
   fs.unlinkSync(csvPath);
 });

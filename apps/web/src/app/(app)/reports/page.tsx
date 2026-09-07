@@ -7,6 +7,7 @@ import { useIncomeVsExpense, useSpendingByCategory, useSpendingByPayee } from "@
 import { EmptyBudgetState } from "@/components/layout/empty-budget-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { AdBanner } from "@/components/ads/ad-banner";
 import { useFormatCents } from "@/hooks/use-locale-format";
 import { useResolvedTheme } from "@/components/providers/theme-provider";
@@ -123,7 +124,10 @@ export default function ReportsPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Net cash flow</CardTitle>
+                <CardTitle className="flex items-center gap-1.5">
+                  Net cash flow
+                  <InfoTooltip content="Income minus expenses each month, excluding transfers between your own accounts — the real month-by-month gain or loss, not just a spending total." />
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="h-64">

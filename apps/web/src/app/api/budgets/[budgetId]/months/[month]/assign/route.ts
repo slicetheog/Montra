@@ -2,6 +2,7 @@ import { z } from "zod";
 import { handleApi } from "@/server/api-helpers";
 import { requireSessionUser } from "@/server/auth/session";
 import { assignMoney } from "@/server/services/budget";
+import { resolveFirstDayOfMonth } from "@/server/services/settings";
 import { parseMonthParam } from "@/server/month-param";
 
 const schema = z.object({
@@ -15,7 +16,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ bud
     const user = await requireSessionUser();
     const { budgetId, month } = await params;
     const body = schema.parse(await request.json());
-    await assignMoney(user.id, budgetId, body.categoryId, parseMonthParam(month), body.amountCents, body.memo);
+    const firstDayOfMonth = await resolveFirstDayOfMonth(user.id);
+    await assignMoney(user.id, budgetId, body.categoryId, parseMonthParam(month, firstDayOfMonth), body.amountCents, body.memo);
     return { ok: true };
   });
 }

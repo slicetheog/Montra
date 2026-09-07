@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { parseDecimalToCents, MoneyError, splitEvenly } from "@montra/domain";
 import { useFormatCents } from "@/hooks/use-locale-format";
 import { toast } from "@/lib/toast";
@@ -278,7 +279,10 @@ function TransactionFormBody({
           {!isTransfer && (
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
-                <Label>Category{splits.length > 1 ? " splits" : ""}</Label>
+                <span className="flex items-center gap-1">
+                  <Label>Category{splits.length > 1 ? " splits" : ""}</Label>
+                  <InfoTooltip content="Add a split to divide this transaction across more than one category — the amounts must add up to the transaction total." />
+                </span>
                 <div className="flex gap-2">
                   {splits.length > 1 && (
                     <button type="button" onClick={splitEvenlyAcrossRows} className="text-xs text-brand hover:underline">
@@ -364,6 +368,7 @@ function TransactionFormBody({
           <label className="flex items-center gap-2 text-sm">
             <Checkbox checked={cleared} onCheckedChange={(v) => setCleared(v === true)} />
             Mark as cleared
+            <InfoTooltip content="Cleared means it's shown up on your bank's side too, not just entered here. It becomes Reconciled once you reconcile this account against a real statement." />
           </label>
 
           {error && (
