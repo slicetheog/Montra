@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { computeNextOccurrence, expandOccurrences } from "../recurrence";
+import { cents } from "../money";
+import { computeNextOccurrence, expandOccurrences, monthlyEquivalentCents, occurrencesPerYear } from "../recurrence";
 
 describe("computeNextOccurrence", () => {
   it("advances monthly and clamps end-of-month overflow (Jan 31 -> Feb 28)", () => {
@@ -54,5 +55,34 @@ describe("expandOccurrences", () => {
       occurrencesAlreadyCreated: 0,
     });
     expect(dates.length).toBe(3);
+  });
+});
+
+describe("occurrencesPerYear", () => {
+  it("matches the standard budgeting-spreadsheet frequency table", () => {
+    expect(occurrencesPerYear("WEEKLY")).toBe(52);
+    expect(occurrencesPerYear("BIWEEKLY")).toBe(26);
+    expect(occurrencesPerYear("MONTHLY")).toBe(12);
+    expect(occurrencesPerYear("EVERY_N_MONTHS", 3)).toBe(4); // quarterly
+    expect(occurrencesPerYear("EVERY_N_MONTHS", 6)).toBe(2); // semi-annual
+    expect(occurrencesPerYear("YEARLY")).toBe(1);
+  });
+});
+
+describe("monthlyEquivalentCents", () => {
+  it("normalizes a $600 annual bill to $50/month", () => {
+    expect(monthlyEquivalentCents(cents(600_00), "YEARLY")).toBe(50_00);
+  });
+
+  it("normalizes a $300 quarterly bill to $100/month", () => {
+    expect(monthlyEquivalentCents(cents(300_00), "EVERY_N_MONTHS", 3)).toBe(100_00);
+  });
+
+  it("leaves a monthly amount unchanged", () => {
+    expect(monthlyEquivalentCents(cents(75_00), "MONTHLY")).toBe(75_00);
+  });
+
+  it("preserves sign for an expense (negative) amount", () => {
+    expect(monthlyEquivalentCents(cents(-1200_00), "YEARLY")).toBe(-100_00);
   });
 });

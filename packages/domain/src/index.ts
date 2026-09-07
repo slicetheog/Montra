@@ -7,3 +7,5 @@ export * from "./reconciliation";
 export * from "./import";
 export * from "./debt-strategy";
 export * from "./recurring-detection";
+export * from "./cash-flow-forecast";
+export * from "./spending-pace";

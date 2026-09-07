@@ -1,3 +1,5 @@
+import { cents, type Cents } from "./money";
+
 export type RecurrenceFrequency =
   | "DAILY"
   | "WEEKLY"
@@ -38,6 +40,39 @@ export function computeNextOccurrence(
       d.setUTCDate(d.getUTCDate() + Math.max(1, intervalCount));
       return d;
   }
+}
+
+/**
+ * How many times a year a series with this cadence lands — the same idea
+ * as a budgeting spreadsheet's frequency-conversion table (a $600 annual
+ * bill "costs" $50/month, so every bill can be compared on equal footing
+ * regardless of how often it's actually paid). DAILY and CUSTOM use 365
+ * rather than 365.25 — close enough for a display estimate, and it keeps
+ * every case here an exact, auditable ratio.
+ */
+export function occurrencesPerYear(frequency: RecurrenceFrequency, intervalCount = 1): number {
+  const n = Math.max(1, intervalCount);
+  switch (frequency) {
+    case "DAILY":
+      return 365 / n;
+    case "WEEKLY":
+      return 52 / n;
+    case "BIWEEKLY":
+      return 26;
+    case "MONTHLY":
+      return 12;
+    case "EVERY_N_MONTHS":
+      return 12 / n;
+    case "YEARLY":
+      return 1;
+    case "CUSTOM":
+      return 365 / n;
+  }
+}
+
+/** Normalizes any cadence to a monthly-equivalent figure for apples-to-apples comparison. */
+export function monthlyEquivalentCents(amountCents: Cents, frequency: RecurrenceFrequency, intervalCount = 1): Cents {
+  return cents(Math.round((amountCents * occurrencesPerYear(frequency, intervalCount)) / 12));
 }
 
 function addCalendarMonths(date: Date, count: number): Date {
