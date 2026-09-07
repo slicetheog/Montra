@@ -15,6 +15,7 @@ checkout with nothing running yet.
 - **[SECURITY.md](./SECURITY.md)** — auth, sessions, authorization, rate limiting, CSRF
 - **[DEPLOYMENT.md](./DEPLOYMENT.md)** — environment variables, migrations, running in production
 - **[API.md](./API.md)** — REST endpoint reference
+- **[docs/ios-testflight-setup.md](./docs/ios-testflight-setup.md)** — one-time Apple setup for the `apps/ios` TestFlight shell
 
 ## Quick start
 

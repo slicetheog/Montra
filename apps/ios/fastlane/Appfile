@@ -1,0 +1,7 @@
+# app_identifier must match capacitor.config.ts's `appId` exactly.
+app_identifier("app.montra.mobile")
+
+# Auth is via an App Store Connect API key (see fastlane/Fastfile's
+# `app_store_connect_api_key` call), not an Apple ID + password, so no
+# apple_id / team_id is set here — the API key's own permissions determine
+# which team/app it can act on. See docs/ios-testflight-setup.md.

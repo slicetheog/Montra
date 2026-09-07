@@ -1,0 +1,48 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Build the native shell and upload it to TestFlight (internal testing)."
+  lane :beta do
+    # All of these come from GitHub Actions secrets — see
+    # docs/ios-testflight-setup.md for exactly how to generate each one.
+    # Nothing here should ever be hardcoded or committed.
+    app_store_connect_api_key(
+      key_id: ENV.fetch("APP_STORE_CONNECT_API_KEY_ID"),
+      issuer_id: ENV.fetch("APP_STORE_CONNECT_API_ISSUER_ID"),
+      key_content: ENV.fetch("APP_STORE_CONNECT_API_KEY_CONTENT"),
+      is_key_content_base64: true,
+    )
+
+    # Automatic signing: Xcode + the App Store Connect API key create/renew
+    # the distribution certificate and provisioning profile on demand
+    # (`-allowProvisioningUpdates` below), so there is no separate
+    # certificates repo (fastlane match) to maintain for this app.
+    update_code_signing_settings(
+      use_automatic_signing: true,
+      team_id: ENV.fetch("APPLE_TEAM_ID"),
+      path: "ios/App/App.xcodeproj",
+    )
+
+    # TestFlight requires a strictly increasing build number per version.
+    # The CI run number is a simple, always-unique, always-increasing
+    # source for this that needs no local state.
+    increment_build_number(
+      build_number: ENV.fetch("GITHUB_RUN_NUMBER", "1"),
+      xcodeproj: "ios/App/App.xcodeproj",
+    )
+
+    build_app(
+      workspace: nil,
+      project: "ios/App/App.xcodeproj",
+      scheme: "App",
+      export_method: "app-store",
+      xcargs: "-allowProvisioningUpdates",
+      output_directory: "ios/build",
+    )
+
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true,
+      distribute_external: false, # internal testers only until the app is production-ready
+    )
+  end
+end
