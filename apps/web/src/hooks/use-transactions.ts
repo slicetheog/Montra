@@ -86,7 +86,8 @@ export function useTransactions(budgetId: string | null, filters: TransactionFil
   });
 }
 
-function invalidateAfterMutation(queryClient: ReturnType<typeof useQueryClient>, budgetId: string | null) {
+/** Shared by anything that creates real transactions outside this file's own mutations (e.g. logging a payment against a recurring series). */
+export function invalidateAfterMutation(queryClient: ReturnType<typeof useQueryClient>, budgetId: string | null) {
   queryClient.invalidateQueries({ queryKey: ["transactions", budgetId] });
   queryClient.invalidateQueries({ queryKey: ["accounts", budgetId] });
   queryClient.invalidateQueries({ queryKey: ["budget-month", budgetId] });

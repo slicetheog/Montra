@@ -387,6 +387,16 @@ model Transaction {
   cleared     ClearedStatus   @default(UNCLEARED)
   isSplit     Boolean         @default(false)
 
+  /// Set when this transaction was materialized from a recurring series
+  /// (see server/services/recurring.ts's materializeDueRecurring) — lets a
+  /// series' progress-to-date (e.g. a multi-installment bill's amount
+  /// paid so far) be computed by summing its actual linked transactions,
+  /// not just assumed from the schedule. Null for anything entered by
+  /// hand or imported. SetNull (not Cascade) so deleting the recurring
+  /// series never deletes the real transactions it already created.
+  sourceRecurringId String?
+  sourceRecurring   RecurringTransaction? @relation("RecurringSource", fields: [sourceRecurringId], references: [id], onDelete: SetNull)
+
   /// For TRANSFER transactions: the other account, and the linked mirror row.
   transferAccountId String?
   transferAccount   Account?     @relation("TransferAccount", fields: [transferAccountId], references: [id])
@@ -408,6 +418,7 @@ model Transaction {
   @@index([budgetId, date])
   @@index([accountId, date])
   @@index([payeeId])
+  @@index([sourceRecurringId])
   @@map("transactions")
 }
 
@@ -495,8 +506,21 @@ model RecurringTransaction {
   reminderDaysBefore Int?
   autoCreate         Boolean             @default(false)
   isActive           Boolean             @default(true)
+  /// "Would I still pay for this?" review flag (subscriptions especially) —
+  /// purely a marker the user sets by hand, rolled up into an annualized
+  /// savings estimate; flagging something here never changes what it does.
+  flaggedToCancel    Boolean             @default(false)
+  /// Optional target total for a bounded series — a one-time bill paid in
+  /// installments, or a fixed number of payments toward a set amount.
+  /// "Amount paid so far" is derived from `transactions` (the series'
+  /// actual materialized occurrences), never stored redundantly. Null for
+  /// an open-ended series (most bills/income), where "total" has no
+  /// meaning.
+  totalAmountCents   Int?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
+
+  transactions Transaction[] @relation("RecurringSource")
 
   @@index([budgetId])
   @@index([nextOccurrenceDate])
@@ -514,22 +538,32 @@ enum GoalType {
   DEBT_PAYOFF
 }
 
+enum GoalPriority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
 model Goal {
-  id                       String    @id @default(cuid())
+  id                       String       @id @default(cuid())
   budgetId                 String
-  budget                   Budget    @relation(fields: [budgetId], references: [id], onDelete: Cascade)
-  categoryId               String?   @unique
-  category                 Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  budget                   Budget       @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  categoryId               String?      @unique
+  category                 Category?    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   /// Set for DEBT_PAYOFF goals: the debt-carrying account being paid down.
   accountId                String?
-  account                  Account?  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account                  Account?     @relation(fields: [accountId], references: [id], onDelete: Cascade)
   name                     String
   type                     GoalType
+  /// Purely a display/sort hint plus an input to the feasibility check
+  /// (services/goals.ts) — never changes how a goal's own progress is
+  /// computed.
+  priority                 GoalPriority @default(MEDIUM)
   targetAmountCents        Int?
   targetDate               DateTime?
   monthlyContributionCents Int?
-  createdAt                DateTime  @default(now())
-  updatedAt                DateTime  @updatedAt
+  createdAt                DateTime     @default(now())
+  updatedAt                DateTime     @updatedAt
 
   @@index([budgetId])
   @@index([accountId])

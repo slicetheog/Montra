@@ -15,6 +15,7 @@ export const createRecurringSchema = z.object({
   occurrencesLimit: z.number().int().positive().optional(),
   reminderDaysBefore: z.number().int().min(0).optional(),
   autoCreate: z.boolean().optional(),
+  totalAmountCents: z.number().int().positive().optional(),
 });
 
 export const updateRecurringSchema = z.object({
@@ -23,4 +24,12 @@ export const updateRecurringSchema = z.object({
   isActive: z.boolean().optional(),
   autoCreate: z.boolean().optional(),
   endDate: z.coerce.date().nullable().optional(),
+  flaggedToCancel: z.boolean().optional(),
+  totalAmountCents: z.number().int().positive().nullable().optional(),
+});
+
+export const logRecurringPaymentSchema = z.object({
+  amountCents: z.number().int().positive(),
+  date: z.coerce.date(),
+  memo: z.string().trim().max(280).optional(),
 });

@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
+import { invalidateAfterMutation } from "@/hooks/use-transactions";
 
 export interface RecurringView {
   id: string;
@@ -22,6 +23,10 @@ export interface RecurringView {
   reminderDaysBefore: number | null;
   autoCreate: boolean;
   isActive: boolean;
+  flaggedToCancel: boolean;
+  totalAmountCents: number | null;
+  /** Sum of this series' actual materialized transactions; null unless totalAmountCents is set. */
+  amountPaidCents: number | null;
 }
 
 export interface RecurringCandidate {
@@ -56,6 +61,7 @@ export interface CreateRecurringInput {
   occurrencesLimit?: number;
   reminderDaysBefore?: number;
   autoCreate?: boolean;
+  totalAmountCents?: number;
 }
 
 export function useRecurring(budgetId: string | null) {
@@ -80,9 +86,26 @@ export function useCreateRecurring(budgetId: string | null) {
 export function useUpdateRecurring(budgetId: string | null) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, input }: { id: string; input: Partial<{ isActive: boolean; autoCreate: boolean }> }) =>
-      api.patch(`/api/budgets/${budgetId}/recurring/${id}`, input),
+    mutationFn: ({
+      id,
+      input,
+    }: {
+      id: string;
+      input: Partial<{ isActive: boolean; autoCreate: boolean; flaggedToCancel: boolean; totalAmountCents: number | null }>;
+    }) => api.patch(`/api/budgets/${budgetId}/recurring/${id}`, input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["recurring", budgetId] }),
+  });
+}
+
+export function useLogRecurringPayment(budgetId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: { amountCents: number; date: string; memo?: string } }) =>
+      api.post(`/api/budgets/${budgetId}/recurring/${id}/log-payment`, input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["recurring", budgetId] });
+      invalidateAfterMutation(queryClient, budgetId);
+    },
   });
 }
 

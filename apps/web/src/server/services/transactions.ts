@@ -26,6 +26,8 @@ export interface CreateTransactionInput {
   amountCents: number;
   splits?: SplitInput[];
   transferAccountId?: string;
+  /** Internal only — set by materializeDueRecurring, never accepted from a client request. */
+  sourceRecurringId?: string;
 }
 
 async function resolvePayeeId(
@@ -178,6 +180,7 @@ export async function createTransaction(userId: string, budgetId: string, input:
         type: input.type,
         cleared: input.cleared ?? "UNCLEARED",
         isSplit: splits.length > 1,
+        sourceRecurringId: input.sourceRecurringId,
         splits: { create: splits.map((s) => ({ categoryId: s.categoryId, amountCents: s.amountCents, memo: s.memo })) },
       },
     });
