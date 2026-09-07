@@ -45,7 +45,18 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatCard icon={TrendingUp} label="Net worth" cents={data.netWorthCents} />
           <StatCard icon={Wallet} label="Cash" cents={data.cashCents} />
-          <StatCard icon={TrendingDown} label="Debt" cents={-data.totalDebtCents} tone={data.totalDebtCents > 0 ? "negative" : undefined} />
+          <StatCard
+            icon={TrendingDown}
+            label="Debt"
+            cents={-data.totalDebtCents}
+            tone={data.totalDebtCents > 0 ? "negative" : undefined}
+            href={data.totalDebtCents > 0 ? "/debt" : undefined}
+            caption={
+              data.debtInterestProjection.totalInterestCents > 0
+                ? `≈ ${formatCents(data.debtInterestProjection.totalInterestCents)} interest ahead`
+                : undefined
+            }
+          />
           <StatCard icon={PiggyBank} label="Available to budget" cents={data.readyToAssignCents} href="/budget" />
         </div>
 
@@ -63,6 +74,18 @@ export default function DashboardPage() {
                 <div>
                   <p className="text-xs text-foreground-muted">Spending</p>
                   <p className="text-lg font-semibold tabular-nums">{formatCents(-data.monthSpendingCents)}</p>
+                  {data.spendingPace && (
+                    <p className="mt-0.5 text-[11px] text-foreground-muted">
+                      On pace for {formatCents(-data.spendingPace.projectedFullMonthCents)}
+                      {data.spendingPace.changeVsLastMonth != null && (
+                        <span className={data.spendingPace.changeVsLastMonth > 0 ? "text-negative" : "text-positive"}>
+                          {" "}
+                          ({data.spendingPace.changeVsLastMonth > 0 ? "↑" : "↓"}
+                          {Math.round(Math.abs(data.spendingPace.changeVsLastMonth) * 100)}% vs last month)
+                        </span>
+                      )}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <p className="text-xs text-foreground-muted">Assigned</p>
@@ -226,12 +249,14 @@ function StatCard({
   cents,
   tone,
   href,
+  caption,
 }: {
   icon: typeof Wallet;
   label: string;
   cents: number;
   tone?: "negative";
   href?: string;
+  caption?: string;
 }) {
   const formatCents = useFormatCents();
   const content = (
@@ -248,6 +273,7 @@ function StatCard({
       >
         {formatCents(cents)}
       </p>
+      {caption && <p className="mt-0.5 truncate text-[11px] text-foreground-muted">{caption}</p>}
     </Card>
   );
   return href ? <Link href={href}>{content}</Link> : content;
