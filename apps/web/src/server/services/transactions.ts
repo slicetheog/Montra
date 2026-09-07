@@ -7,6 +7,7 @@ import { requireBudgetOwnership } from "@/server/services/budgets";
 import { requireAccountInBudget } from "@/server/services/accounts";
 import { findOrCreatePayee } from "@/server/services/payees";
 import { applyCreditCardOffset, requireCategoryInBudget, reverseCreditCardOffsetsForTransaction } from "@/server/services/budget";
+import { resolveFirstDayOfMonth } from "@/server/services/settings";
 import { logAudit } from "@/server/services/audit";
 
 export interface SplitInput {
@@ -68,6 +69,7 @@ async function applyCcOffsetsForSplits(
   transactionId: string,
   date: Date,
   splits: { categoryId: string | null; amountCents: number }[],
+  firstDayOfMonth = 1,
 ) {
   const account = await tx.account.findUnique({ where: { id: accountId } });
   if (!account || account.type !== "CREDIT_CARD") return;
@@ -88,6 +90,7 @@ async function applyCcOffsetsForSplits(
       date,
       -split.amountCents,
       transactionId,
+      firstDayOfMonth,
     );
   }
 }
@@ -165,6 +168,7 @@ export async function createTransaction(userId: string, budgetId: string, input:
   const splits = input.splits ?? [];
   assertSplitsSumToTotal(cents(input.amountCents), splits.map((s) => cents(s.amountCents)));
   await requireSplitCategoriesInBudget(budgetId, splits);
+  const firstDayOfMonth = await resolveFirstDayOfMonth(userId);
 
   const transaction = await prisma.$transaction(async (tx) => {
     const payeeId = await resolvePayeeId(tx, budgetId, input.payeeId, input.payeeName);
@@ -185,7 +189,7 @@ export async function createTransaction(userId: string, budgetId: string, input:
       },
     });
 
-    await applyCcOffsetsForSplits(tx, budgetId, input.accountId, created.id, input.date, splits);
+    await applyCcOffsetsForSplits(tx, budgetId, input.accountId, created.id, input.date, splits, firstDayOfMonth);
 
     return created;
   });
@@ -279,6 +283,7 @@ export async function updateTransaction(
     patch.splits ?? existing.splits.map((s) => ({ categoryId: s.categoryId, amountCents: s.amountCents, memo: s.memo ?? undefined }));
   assertSplitsSumToTotal(cents(nextAmount), nextSplits.map((s) => cents(s.amountCents)));
   if (patch.splits) await requireSplitCategoriesInBudget(budgetId, patch.splits);
+  const firstDayOfMonth = await resolveFirstDayOfMonth(userId);
 
   const updated = await prisma.$transaction(async (tx) => {
     // Reverse this transaction's prior CC-offset effects before re-applying with new numbers.
@@ -306,7 +311,7 @@ export async function updateTransaction(
       },
     });
 
-    await applyCcOffsetsForSplits(tx, budgetId, result.accountId, transactionId, result.date, nextSplits);
+    await applyCcOffsetsForSplits(tx, budgetId, result.accountId, transactionId, result.date, nextSplits, firstDayOfMonth);
     return result;
   });
 

@@ -108,8 +108,12 @@ function SettingsInner() {
                   </div>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label>First day of month (for budget periods)</Label>
+                  <span className="flex items-center gap-1">
+                    <Label htmlFor="first-day-of-month">First day of month (for budget periods)</Label>
+                    <InfoTooltip content="If you're paid on an unusual cycle, set this to the day your budget period should start instead of the 1st — the Budget screen, Available to Budget, and Dashboard totals all switch to tracking that cycle instead of the calendar month." />
+                  </span>
                   <Input
+                    id="first-day-of-month"
                     type="number"
                     min={1}
                     max={28}

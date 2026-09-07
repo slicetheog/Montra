@@ -17,6 +17,7 @@ import {
 import { ConflictError, ForbiddenError, NotFoundError } from "@/server/api-helpers";
 import { requireBudgetOwnership } from "@/server/services/budgets";
 import { getOrCreateBudgetMonth, getOrCreateCategoryMonth } from "@/server/services/budget-months";
+import { resolveFirstDayOfMonth } from "@/server/services/settings";
 import { logAudit } from "@/server/services/audit";
 
 type Client = Prisma.TransactionClient | typeof prisma;
@@ -26,9 +27,9 @@ type Client = Prisma.TransactionClient | typeof prisma;
 // ---------------------------------------------------------------------------
 
 /** Sum of every Assignment for this category through and including `uptoMonth`. */
-async function cumulativeAssigned(db: Client, categoryId: string, uptoMonth: Date): Promise<Cents> {
+async function cumulativeAssigned(db: Client, categoryId: string, uptoMonth: Date, firstDayOfMonth = 1): Promise<Cents> {
   const result = await db.assignment.aggregate({
-    where: { categoryId, budgetMonth: { month: { lte: monthStart(uptoMonth) } } },
+    where: { categoryId, budgetMonth: { month: { lte: monthStart(uptoMonth, firstDayOfMonth) } } },
     _sum: { amountCents: true },
   });
   return cents(result._sum.amountCents ?? 0);
@@ -44,9 +45,9 @@ async function cumulativeActivity(db: Client, categoryId: string, beforeDate: Da
 }
 
 /** This category's Available balance at the end of `month` (the rollover formula, telescoped). */
-export async function getCategoryAvailable(db: Client, categoryId: string, month: Date): Promise<Cents> {
-  const assigned = await cumulativeAssigned(db, categoryId, month);
-  const activity = await cumulativeActivity(db, categoryId, monthEndExclusive(month));
+export async function getCategoryAvailable(db: Client, categoryId: string, month: Date, firstDayOfMonth = 1): Promise<Cents> {
+  const assigned = await cumulativeAssigned(db, categoryId, month, firstDayOfMonth);
+  const activity = await cumulativeActivity(db, categoryId, monthEndExclusive(month, firstDayOfMonth));
   return add(assigned, activity);
 }
 
@@ -54,7 +55,7 @@ export async function getCategoryAvailable(db: Client, categoryId: string, month
 // Ready to Assign
 // ---------------------------------------------------------------------------
 
-export async function getReadyToAssign(db: Client, budgetId: string, uptoMonth: Date): Promise<Cents> {
+export async function getReadyToAssign(db: Client, budgetId: string, uptoMonth: Date, firstDayOfMonth = 1): Promise<Cents> {
   const [incomeResult, assignedResult] = await Promise.all([
     db.transactionSplit.aggregate({
       where: {
@@ -62,14 +63,14 @@ export async function getReadyToAssign(db: Client, budgetId: string, uptoMonth: 
         transaction: {
           budgetId,
           type: "INCOME",
-          date: { lt: monthEndExclusive(uptoMonth) },
+          date: { lt: monthEndExclusive(uptoMonth, firstDayOfMonth) },
           account: { onBudget: true },
         },
       },
       _sum: { amountCents: true },
     }),
     db.assignment.aggregate({
-      where: { budgetId, budgetMonth: { month: { lte: monthStart(uptoMonth) } } },
+      where: { budgetId, budgetMonth: { month: { lte: monthStart(uptoMonth, firstDayOfMonth) } } },
       _sum: { amountCents: true },
     }),
   ]);
@@ -105,7 +106,8 @@ export interface CategoryGroupView {
 
 export async function getMonthView(userId: string, budgetId: string, month: Date) {
   await requireBudgetOwnership(budgetId, userId);
-  const normalized = monthStart(month);
+  const firstDayOfMonth = await resolveFirstDayOfMonth(userId);
+  const normalized = monthStart(month, firstDayOfMonth);
 
   const groups = await prisma.categoryGroup.findMany({
     where: { budgetId, isArchived: false },
@@ -136,12 +138,12 @@ export async function getMonthView(userId: string, budgetId: string, month: Date
           .aggregate({
             where: {
               categoryId: category.id,
-              transaction: { date: { gte: normalized, lt: monthEndExclusive(normalized) } },
+              transaction: { date: { gte: normalized, lt: monthEndExclusive(normalized, firstDayOfMonth) } },
             },
             _sum: { amountCents: true },
           })
           .then((r) => r._sum.amountCents ?? 0),
-        getCategoryAvailable(prisma, category.id, normalized),
+        getCategoryAvailable(prisma, category.id, normalized, firstDayOfMonth),
       ]);
 
       const view: CategoryMonthView = {
@@ -175,7 +177,7 @@ export async function getMonthView(userId: string, budgetId: string, month: Date
     })),
   );
 
-  const readyToAssign = await getReadyToAssign(prisma, budgetId, normalized);
+  const readyToAssign = await getReadyToAssign(prisma, budgetId, normalized, firstDayOfMonth);
 
   return {
     month: normalized.toISOString(),
@@ -205,10 +207,11 @@ export async function assignMoney(
 ) {
   await requireBudgetOwnership(budgetId, userId);
   await requireCategoryInBudget(categoryId, budgetId);
-  const normalized = monthStart(month);
+  const firstDayOfMonth = await resolveFirstDayOfMonth(userId);
+  const normalized = monthStart(month, firstDayOfMonth);
 
   await prisma.$transaction(async (tx) => {
-    const budgetMonth = await getOrCreateBudgetMonth(tx, budgetId, normalized);
+    const budgetMonth = await getOrCreateBudgetMonth(tx, budgetId, normalized, firstDayOfMonth);
     await getOrCreateCategoryMonth(tx, categoryId, budgetMonth.id);
 
     await tx.assignment.create({
@@ -237,9 +240,10 @@ export async function moveMoney(
   await requireBudgetOwnership(budgetId, userId);
   await requireCategoryInBudget(fromCategoryId, budgetId);
   await requireCategoryInBudget(toCategoryId, budgetId);
-  const normalized = monthStart(month);
+  const firstDayOfMonth = await resolveFirstDayOfMonth(userId);
+  const normalized = monthStart(month, firstDayOfMonth);
 
-  const availableInSource = await getCategoryAvailable(prisma, fromCategoryId, normalized);
+  const availableInSource = await getCategoryAvailable(prisma, fromCategoryId, normalized, firstDayOfMonth);
   try {
     assertCanMove(availableInSource, cents(amountCents));
   } catch {
@@ -249,7 +253,7 @@ export async function moveMoney(
   }
 
   await prisma.$transaction(async (tx) => {
-    const budgetMonth = await getOrCreateBudgetMonth(tx, budgetId, normalized);
+    const budgetMonth = await getOrCreateBudgetMonth(tx, budgetId, normalized, firstDayOfMonth);
     await getOrCreateCategoryMonth(tx, fromCategoryId, budgetMonth.id);
     await getOrCreateCategoryMonth(tx, toCategoryId, budgetMonth.id);
 
@@ -444,17 +448,18 @@ export async function applyCreditCardOffset(
   month: Date,
   outflowMagnitudeCents: number,
   sourceTransactionId: string,
+  firstDayOfMonth = 1,
 ) {
   if (spendingCategoryId === paymentCategoryId) return;
 
-  const normalized = monthStart(month);
+  const normalized = monthStart(month, firstDayOfMonth);
   // The pending purchase hasn't been inserted yet, so "available through this
   // month" from existing rows already means "available before this txn".
-  const availableBefore = await getCategoryAvailable(tx, spendingCategoryId, normalized);
+  const availableBefore = await getCategoryAvailable(tx, spendingCategoryId, normalized, firstDayOfMonth);
   const offset = computeCreditCardOffset(cents(outflowMagnitudeCents), availableBefore);
   if (offset <= 0) return;
 
-  const budgetMonth = await getOrCreateBudgetMonth(tx, budgetId, normalized);
+  const budgetMonth = await getOrCreateBudgetMonth(tx, budgetId, normalized, firstDayOfMonth);
   await getOrCreateCategoryMonth(tx, paymentCategoryId, budgetMonth.id);
 
   await tx.assignment.create({

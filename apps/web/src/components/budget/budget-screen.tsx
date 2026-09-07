@@ -6,6 +6,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, Plus, Search } from "lucide-rea
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { monthStart, addMonths } from "@montra/domain";
 import { CategoryRow, CategoryRowHeader } from "@/components/budget/category-row";
 import { MoveMoneyDialog } from "@/components/budget/move-money-dialog";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
@@ -15,8 +16,14 @@ import { useFormatCents } from "@/hooks/use-locale-format";
 import { api } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 
-export function BudgetScreen({ budgetId }: { budgetId: string }) {
-  const [month, setMonth] = useState(() => new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)));
+export function BudgetScreen({ budgetId, firstDayOfMonth }: { budgetId: string; firstDayOfMonth: number }) {
+  // The real current *period* start (which can fall in the previous
+  // calendar month, e.g. Aug 25 for a Sept-10 "today" with
+  // firstDayOfMonth=25) — not always the 1st. shiftMonth then steps by
+  // whole periods the same way, so the two stay in agreement; see
+  // server/month-param.ts's doc comment for how this round-trips through
+  // the "YYYY-MM" URL key.
+  const [month, setMonth] = useState(() => monthStart(new Date(), firstDayOfMonth));
   const [search, setSearch] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [moveDialogFor, setMoveDialogFor] = useState<string | null | "open">(null);
@@ -31,7 +38,7 @@ export function BudgetScreen({ budgetId }: { budgetId: string }) {
   const moveMoney = useMoveMoney(budgetId, month);
 
   function shiftMonth(delta: number) {
-    setMonth((m) => new Date(Date.UTC(m.getUTCFullYear(), m.getUTCMonth() + delta, 1)));
+    setMonth((m) => addMonths(m, delta, firstDayOfMonth));
   }
 
   const filteredGroups = useMemo(() => {

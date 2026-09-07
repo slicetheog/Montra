@@ -309,6 +309,12 @@ export const HELP_CATEGORIES: HelpCategory[] = [
         answer:
           "Montra generates notifications for upcoming bills, overspending in a category, goal milestones, a recurring transaction that just posted, and reconciliation reminders. Turn them off entirely from Settings if you'd rather check the app on your own schedule — the bell icon in the header shows your unread count either way.",
       },
+      {
+        id: "first-day-of-month",
+        question: "What does \"First day of month\" actually change?",
+        answer:
+          "It moves your budget's monthly period to start on that day instead of the 1st — useful if you're paid on, say, the 25th and want your budget \"month\" to track your pay cycle. Once set, the Budget screen's periods, Available to Budget, the Dashboard's this-month totals, and the Goals monthly-contribution check all shift to that cycle. It only affects periods going forward — a month you already assigned money into keeps the boundaries it was created with.",
+      },
     ],
   },
   {

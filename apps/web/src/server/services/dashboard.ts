@@ -1,17 +1,21 @@
 import "server-only";
 import { prisma } from "@montra/db";
-import { addMonths, cents, computeSpendingPace, monthStart } from "@montra/domain";
+import { addMonths, cents, computeSpendingPace, monthEndExclusive, monthStart } from "@montra/domain";
 import { requireBudgetOwnership } from "@/server/services/budgets";
 import { getMonthView } from "@/server/services/budget";
 import { getNetWorthNow } from "@/server/services/net-worth";
 import { listGoals } from "@/server/services/goals";
 import { listRecurring } from "@/server/services/recurring";
 import { listDebts } from "@/server/services/debts";
+import { resolveFirstDayOfMonth } from "@/server/services/settings";
+
+const DAY_MS = 86_400_000;
 
 export async function getDashboardSummary(userId: string, budgetId: string) {
   await requireBudgetOwnership(budgetId, userId);
   const now = new Date();
-  const monthStartDate = monthStart(now);
+  const firstDayOfMonth = await resolveFirstDayOfMonth(userId);
+  const monthStartDate = monthStart(now, firstDayOfMonth);
 
   const [netWorth, month, goals, recurring, debts, recentTransactions, cashAccounts] = await Promise.all([
     getNetWorthNow(userId, budgetId),
@@ -52,7 +56,7 @@ export async function getDashboardSummary(userId: string, budgetId: string) {
   // that paces up or down day to day). sourceRecurringId is only ever set
   // by the recurring materializer/log-payment path (see
   // services/recurring.ts), so its absence is exactly "logged by hand."
-  const prevMonthStart = addMonths(monthStartDate, -1);
+  const prevMonthStart = addMonths(monthStartDate, -1, firstDayOfMonth);
   const [variableThisMonthAgg, variableLastMonthAgg] = await Promise.all([
     prisma.transaction.aggregate({
       where: { budgetId, type: "EXPENSE", sourceRecurringId: null, date: { gte: monthStartDate } },
@@ -63,9 +67,12 @@ export async function getDashboardSummary(userId: string, budgetId: string) {
       _sum: { amountCents: true },
     }),
   ]);
-  const dayOfMonth = now.getUTCDate();
-  const daysInMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
-  // Too little signal in the first couple of days of the month to project meaningfully.
+  // Elapsed/total days *in this budget period* rather than the calendar
+  // month — identical to calendar day-of-month when firstDayOfMonth is 1
+  // (the default), but tracks a custom pay-cycle period correctly too.
+  const dayOfMonth = Math.floor((now.getTime() - monthStartDate.getTime()) / DAY_MS) + 1;
+  const daysInMonth = Math.round((monthEndExclusive(now, firstDayOfMonth).getTime() - monthStartDate.getTime()) / DAY_MS);
+  // Too little signal in the first couple of days of the period to project meaningfully.
   const spendingPace =
     dayOfMonth >= 3
       ? computeSpendingPace({

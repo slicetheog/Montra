@@ -8,8 +8,9 @@ export async function getOrCreateBudgetMonth(
   tx: Prisma.TransactionClient | typeof prisma,
   budgetId: string,
   month: Date,
+  firstDayOfMonth = 1,
 ) {
-  const normalized = monthStart(month);
+  const normalized = monthStart(month, firstDayOfMonth);
   const existing = await tx.budgetMonth.findUnique({
     where: { budgetId_month: { budgetId, month: normalized } },
   });
