@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { RemoveAdsCard } from "@/components/settings/remove-ads-card";
 import { ImportDialog } from "@/components/imports/import-dialog";
 import { AdBanner } from "@/components/ads/ad-banner";
@@ -154,7 +155,10 @@ function SettingsInner() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Full backup</CardTitle>
+                  <CardTitle className="flex items-center gap-1.5">
+                    Full backup
+                    <InfoTooltip content="Restoring replaces your data with the backup's contents — it isn't a merge. Sessions, the audit log, purchase records, past imports, reconciliation history, and notifications aren't included (they're either regenerable or account-specific noise)." />
+                  </CardTitle>
                   <CardDescription>Download everything — all budgets, accounts, transactions, goals, and settings.</CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-wrap gap-2">

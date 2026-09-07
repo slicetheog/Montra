@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { CategoryRow, CategoryRowHeader } from "@/components/budget/category-row";
 import { MoveMoneyDialog } from "@/components/budget/move-money-dialog";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useAssignMoney, useBudgetMonth, useMoveMoney } from "@/hooks/use-budget-month";
 import { formatMonthLabel, cn } from "@/lib/utils";
 import { useFormatCents } from "@/hooks/use-locale-format";
@@ -110,13 +111,11 @@ export function BudgetScreen({ budgetId }: { budgetId: string }) {
           )}
         >
           <div>
-            <p
-              className={cn(
-                "text-2xl font-semibold tabular-nums",
-                fullyBudgeted ? "text-positive" : readyToAssign < 0 ? "text-negative" : "text-brand-strong",
-              )}
-            >
-              {formatCents(readyToAssign)}
+            <p className="flex items-center gap-1.5 text-2xl font-semibold tabular-nums">
+              <span className={cn(fullyBudgeted ? "text-positive" : readyToAssign < 0 ? "text-negative" : "text-brand-strong")}>
+                {formatCents(readyToAssign)}
+              </span>
+              <InfoTooltip content="Income you haven't assigned a job to yet — it grows when on-budget income lands and shrinks whenever you assign money to a category, across all time." />
             </p>
             <p className="text-sm text-foreground-muted">
               {fullyBudgeted

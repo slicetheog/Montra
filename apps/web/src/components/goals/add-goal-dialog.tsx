@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { parseDecimalToCents, MoneyError } from "@montra/domain";
 import { useCreateGoal } from "@/hooks/use-goals";
 import { useCategories } from "@/hooks/use-categories";
@@ -88,7 +89,10 @@ export function AddGoalDialog({ open, onOpenChange, budgetId }: { open: boolean;
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
-              <Label>Goal type</Label>
+              <span className="flex items-center gap-1">
+                <Label>Goal type</Label>
+                <InfoTooltip content="Target Balance: save up to an amount, no deadline. Target Date: save an amount by a date (we'll suggest the monthly pace). Monthly Contribution: commit to a fixed amount every month. Debt Payoff: pay a linked debt down to zero." />
+              </span>
               <Select value={type} onValueChange={(v) => setType(v as keyof typeof GOAL_TYPE_LABELS)}>
                 <SelectTrigger>
                   <SelectValue />
@@ -103,7 +107,10 @@ export function AddGoalDialog({ open, onOpenChange, budgetId }: { open: boolean;
               </Select>
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label>Priority</Label>
+              <span className="flex items-center gap-1">
+                <Label>Priority</Label>
+                <InfoTooltip content="Sets the order this goal is checked in on the Goals page's feasibility banner — a High-priority goal gets first claim on your Available to Budget. It never changes this goal's own progress." />
+              </span>
               <Select value={priority} onValueChange={(v) => setPriority(v as keyof typeof PRIORITY_LABELS)}>
                 <SelectTrigger>
                   <SelectValue />

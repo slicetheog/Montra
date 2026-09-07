@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowLeftRight } from "lucide-react";
 import { AssignCell } from "@/components/budget/assign-cell";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { cn } from "@/lib/utils";
 import { useFormatCents } from "@/hooks/use-locale-format";
 import type { CategoryMonthView } from "@/hooks/use-budget-month";
@@ -113,9 +114,15 @@ export function CategoryRowHeader() {
   return (
     <div className="hidden gap-2 px-3 py-1.5 text-xs font-medium text-foreground-muted sm:grid sm:grid-cols-[1fr_7rem_7rem_7rem_2rem]">
       <div>Category</div>
-      <div className="text-right">Assigned</div>
-      <div className="text-right">Activity</div>
-      <div className="text-right">Available</div>
+      <div className="flex items-center justify-end gap-1">
+        Assigned <InfoTooltip content="How much you've put into this category this month. Click the amount on any row to change it." />
+      </div>
+      <div className="flex items-center justify-end gap-1">
+        Activity <InfoTooltip content="The net of every transaction posted to this category this month. Spending shows as negative." />
+      </div>
+      <div className="flex items-center justify-end gap-1">
+        Available <InfoTooltip content="What's actually left in this category right now: last month's leftover, plus Assigned, plus Activity. Negative means overspent." />
+      </div>
       <div />
     </div>
   );

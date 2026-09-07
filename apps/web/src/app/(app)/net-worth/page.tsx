@@ -5,6 +5,7 @@ import { useCurrentBudget } from "@/hooks/use-current-budget";
 import { useNetWorthHistory, useNetWorthNow } from "@/hooks/use-net-worth";
 import { EmptyBudgetState } from "@/components/layout/empty-budget-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { ACCOUNT_TYPE_LABELS } from "@/lib/constants";
 import { useFormatCents } from "@/hooks/use-locale-format";
 import { useResolvedTheme } from "@/components/providers/theme-provider";
@@ -53,7 +54,10 @@ export default function NetWorthPage() {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>Trend</CardTitle>
+          <CardTitle className="flex items-center gap-1.5">
+            Trend
+            <InfoTooltip content="Reconstructed from your real transaction history at the end of each of the last 12 months — not a snapshot, so it reflects what your accounts actually looked like at each point in time." />
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-64">

@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
@@ -66,7 +67,10 @@ export default function RecurringPage() {
         <ArrowLeft className="size-4" /> Dashboard
       </Link>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Recurring transactions</h1>
+        <h1 className="flex items-center gap-1.5 text-xl font-semibold">
+          Recurring transactions
+          <InfoTooltip content="Auto-create posts the real transaction for you automatically when it's due. Leave it off for a reminder only — you'll still log the transaction by hand." />
+        </h1>
         <Button onClick={() => setAddOpen(true)}>
           <Plus className="size-4" /> New recurring transaction
         </Button>

@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useFormatCents, useFormatDate } from "@/hooks/use-locale-format";
 import { parseDecimalToCents, MoneyError } from "@montra/domain";
 import { toast } from "@/lib/toast";
@@ -254,7 +255,10 @@ function DebtDetailsDialog({
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="debt-original">Original balance</Label>
+            <span className="flex items-center gap-1">
+              <Label htmlFor="debt-original">Original balance</Label>
+              <InfoTooltip content="Just a reference point — the debt's real, current balance is always the actual sum of its transactions, the same as every account balance in Montra." />
+            </span>
             <Input id="debt-original" inputMode="decimal" placeholder="0.00" value={originalBalance} onChange={(e) => setOriginalBalance(e.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -263,7 +267,10 @@ function DebtDetailsDialog({
               <Input id="debt-rate" inputMode="decimal" placeholder="19.99" value={rate} onChange={(e) => setRate(e.target.value)} />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="debt-min">Minimum payment</Label>
+              <span className="flex items-center gap-1">
+                <Label htmlFor="debt-min">Minimum payment</Label>
+                <InfoTooltip content="Used to project payoff time and interest. It's also what the Snowball/Avalanche strategy treats as this debt's baseline, before any shared extra payment." />
+              </span>
               <Input id="debt-min" inputMode="decimal" placeholder="0.00" value={minPayment} onChange={(e) => setMinPayment(e.target.value)} />
             </div>
           </div>

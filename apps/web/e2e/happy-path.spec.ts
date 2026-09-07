@@ -221,6 +221,14 @@ test("full budgeting lifecycle", async ({ page }) => {
   await reconcileDialog.getByRole("button", { name: "Reconcile" }).click();
   await expect(page.getByText("Account reconciled.")).toBeVisible();
 
+  // 14b. Help center: browse a topic, then search across all of them
+  await page.goto("/help");
+  await expect(page.getByRole("heading", { name: "Help Center" })).toBeVisible();
+  await page.getByRole("button", { name: "Recurring Transactions" }).click();
+  await expect(page.getByText("What's the difference between Auto-create on and off?")).toBeVisible();
+  await page.getByLabel("Search help articles").fill("available to budget");
+  await expect(page.getByText(/result.*for/)).toBeVisible();
+
   // 15. Log out
   await page.getByRole("button", { name: "Log out" }).click();
   await page.waitForURL("**/login", { waitUntil: "commit" });

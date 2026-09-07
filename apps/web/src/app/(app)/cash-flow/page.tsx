@@ -9,6 +9,7 @@ import { useCashFlowForecast, type PayPeriod } from "@/hooks/use-cash-flow";
 import { EmptyBudgetState } from "@/components/layout/empty-budget-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { cn } from "@/lib/utils";
 import { useFormatCents, useFormatDate } from "@/hooks/use-locale-format";
 import { useResolvedTheme } from "@/components/providers/theme-provider";
@@ -145,7 +146,12 @@ export default function CashFlowPage() {
                       <th className="py-2 pr-3 text-right font-medium">Income</th>
                       <th className="py-2 pr-3 text-right font-medium">Outflow</th>
                       <th className="py-2 pr-3 text-right font-medium">Ending balance</th>
-                      <th className="py-2 text-right font-medium">Status</th>
+                      <th className="py-2 text-right font-medium">
+                        <span className="inline-flex items-center gap-1">
+                          Status
+                          <InfoTooltip content="Short means the running balance is actually projected to dip below zero sometime in this period — not just that this period's own bills exceed its own income. A cushion carried over from an earlier period counts." />
+                        </span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
