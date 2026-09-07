@@ -1,0 +1,61 @@
+name: iOS TestFlight
+
+# Every push to main is a production web release, and per project policy
+# every production web release also ships an updated iOS build to
+# TestFlight (internal testers only, while the app is not yet
+# production-ready for public App Store review). See
+# docs/ios-testflight-setup.md for the one-time setup this workflow
+# depends on.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  build-and-upload:
+    # iOS builds require Xcode, which is only available on macOS runners.
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Sync web config into the native iOS shell
+        working-directory: apps/ios
+        env:
+          MONTRA_PRODUCTION_APP_URL: ${{ vars.MONTRA_PRODUCTION_APP_URL }}
+        run: npx cap sync ios
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+          working-directory: apps/ios
+
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode.app
+
+      - name: Build and upload to TestFlight
+        working-directory: apps/ios
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: bundle exec fastlane beta
+
+      - name: Upload build artifacts (for debugging a failed run)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-logs
+          path: |
+            apps/ios/ios/build
+            ~/Library/Logs/gym
+          retention-days: 5
