@@ -52,8 +52,14 @@ under Membership Details. Save it; it's `APPLE_TEAM_ID` in step 4.
 1. In App Store Connect, go to **Users and Access** → **Integrations** →
    **App Store Connect API**.
 2. Click **+** to generate a new key. Name it e.g. "GitHub Actions CI".
-   Access: **App Manager** (needed so it can create/renew signing
-   certificates and provisioning profiles automatically during CI builds).
+   Access: **Admin** — this is required, not just convenient. Apple only
+   lets a key auto-create/renew a distribution certificate ("Cloud Managed
+   Signing", what `-allowProvisioningUpdates` relies on in CI) if its role
+   is Admin; App Manager can't touch certificates at all and fails with a
+   "Cloud signing permission error" at export time — a mistake in an
+   earlier draft of this doc, if you already made a key with App Manager
+   access, generate a new one with Admin instead (existing keys can't be
+   upgraded in place) and update the 2 secrets below that reference it.
 3. Download the `.p8` key file **immediately** — Apple only lets you
    download it once. Store it somewhere safe.
 4. Note the **Key ID** and **Issuer ID** shown on that page.
