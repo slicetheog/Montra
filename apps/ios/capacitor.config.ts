@@ -18,10 +18,19 @@ const config: CapacitorConfig = {
   appId: "app.montra.mobile",
   appName: "Montra",
   webDir: "www",
-  server: {
-    url: PRODUCTION_APP_URL,
-    cleartext: PRODUCTION_APP_URL.startsWith("http://"),
-  },
+  // Color for the native chrome behind the WKWebView — visible in the
+  // safe-area strip `contentInset: "automatic"` reserves below the web
+  // content (that's the "black bar at the bottom" this fixes) and
+  // during elastic overscroll. Matches the app's dark-theme background
+  // token (globals.css's dark `--color-background`), same idea as
+  // manifest.ts's PWA `background_color` for the install splash screen.
+  // Both are a single static color with no way to follow the system
+  // light/dark setting, so this is a real tradeoff: dark-mode users get
+  // an invisible match, light-mode users get a brief dark flash/edge
+  // instead of a black one. Picked dark here since that's what's
+  // actually been reported; revisit if light-mode users report the
+  // reverse.
+  backgroundColor: "#0a1220",
   ios: {
     contentInset: "automatic",
   },
