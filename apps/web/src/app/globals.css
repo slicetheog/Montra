@@ -198,6 +198,29 @@
   border: 1px solid var(--border-strong);
 }
 
+/* iOS auto-zooms the page when a focused text input/textarea/select has
+   a computed font-size under 16px — Apple's own long-standing behavior,
+   not a bug in WebKit, but one that's easy to trip on a design system
+   whose form-field text sizes are 14px (Tailwind's `text-sm`). In a
+   normal mobile browser the user can pinch back out; inside the native
+   iOS app's WKWebView there's no such affordance, so it reads as
+   "the app is stuck zoomed in" (reported first via the post-login
+   dashboard, then unmistakably via the add-category dialog). Forcing
+   16px specifically below the `sm` breakpoint removes the trigger
+   everywhere at once — current inputs and any added later — without
+   touching desktop sizing or the browser's own zoom affordance/
+   accessibility (this only ever makes text bigger, never disables
+   pinch-zoom). `!important` is required here since Tailwind's own
+   `text-sm` utility class otherwise wins on specificity over a plain
+   element selector. */
+@media (max-width: 640px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 .skip-link:focus {
   left: 1rem;
   top: 1rem;
