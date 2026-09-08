@@ -14,7 +14,11 @@ on:
 jobs:
   build-and-upload:
     # iOS builds require Xcode, which is only available on macOS runners.
-    runs-on: macos-15
+    # Apple requires apps be built with the current-year iOS SDK to upload
+    # to App Store Connect at all (rejected otherwise with a 409 "SDK
+    # version issue"), so this needs to track whichever macOS runner label
+    # currently ships that Xcode version — not just "whatever's newest".
+    runs-on: macos-26
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +43,13 @@ jobs:
           working-directory: apps/ios
 
       - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode.app
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          # Runner images ship several Xcode versions side by side; this
+          # always picks the newest non-beta one instead of a hardcoded
+          # path, so a future Apple SDK bump doesn't silently regress this
+          # step the way the previous hardcoded path did.
+          xcode-version: latest-stable
 
       - name: Build and upload to TestFlight
         working-directory: apps/ios
