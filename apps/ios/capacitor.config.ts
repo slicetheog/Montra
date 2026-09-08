@@ -18,6 +18,10 @@ const config: CapacitorConfig = {
   appId: "app.montra.mobile",
   appName: "Montra",
   webDir: "www",
+  server: {
+    url: PRODUCTION_APP_URL,
+    cleartext: PRODUCTION_APP_URL.startsWith("http://"),
+  },
   // Color for the native chrome behind the WKWebView — visible in the
   // safe-area strip `contentInset: "automatic"` reserves below the web
   // content (that's the "black bar at the bottom" this fixes) and
