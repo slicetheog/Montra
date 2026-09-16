@@ -134,6 +134,22 @@ test("full budgeting lifecycle", async ({ page }) => {
   // also coincidentally match a group-total or other summary figure.
   await expect(page.locator(`[data-testid="available-${groceriesId}"]:visible`)).toHaveText("$255.00"); // 300 assigned - 45 spent
 
+  // 10b. A second transaction to the same payee should suggest Groceries
+  // on its own (from the history the transaction above just created),
+  // without picking a category by hand.
+  await page.goto("/accounts");
+  await page.getByRole("link", { name: "Checking" }).click();
+  await page.getByRole("button", { name: "Add transaction" }).click();
+  await page.getByLabel("Payee").fill("Whole Foods");
+  await page.getByLabel(/Amount/).click(); // blurs Payee, triggering the suggestion lookup
+  await expect(page.getByRole("combobox").last()).toContainText(/Groceries/);
+  await page.getByLabel(/Amount/).fill("15");
+  await page.getByRole("button", { name: "Add transaction" }).click();
+  await expect(page.getByText("Transaction added.")).toBeVisible();
+
+  await page.goto("/budget");
+  await expect(page.locator(`[data-testid="available-${groceriesId}"]:visible`)).toHaveText("$240.00"); // 255 - 15
+
   // 11. Move money between two categories
   await page.locator(`[data-testid="move-${groceriesId}"]:visible`).click();
   const moveDialog = page.getByRole("dialog", { name: "Move money" });
@@ -302,8 +318,11 @@ test("full budgeting lifecycle", async ({ page }) => {
   // The transaction list renders both a mobile-card and a desktop-table
   // layout for each row (only one visible at a time via CSS) — filter to
   // the visible instance to avoid a strict-mode "resolved to 2 elements".
+  // Whole Foods is now two separate transactions (step 10b's auto-
+  // categorized one too) so this checks the first visible match rather
+  // than requiring exactly one.
   await expect(page.getByText("Gas Station").and(page.locator(":visible"))).toBeVisible();
-  await expect(page.getByText("Whole Foods").and(page.locator(":visible"))).toBeVisible();
+  await expect(page.getByText("Whole Foods").and(page.locator(":visible")).first()).toBeVisible();
   await expect(page.getByText("Employer").and(page.locator(":visible"))).toBeVisible();
 
   // 18. A custom "First day of month" (Settings -> Preferences) actually

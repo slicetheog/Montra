@@ -15,6 +15,7 @@ import { ApiRequestError } from "@/lib/api-client";
 import { TRANSACTION_TYPE_LABELS } from "@/lib/constants";
 import type { AccountView } from "@/hooks/use-accounts";
 import type { CategoryGroupListItem } from "@/hooks/use-categories";
+import { api } from "@/lib/api-client";
 import type { PayeeView } from "@/hooks/use-payees";
 import {
   useCreateTransaction,
@@ -82,6 +83,27 @@ function TransactionFormBody({
       : [{ categoryId: null, amount: "", memo: "" }],
   );
   const [error, setError] = useState<string | null>(null);
+
+  // Auto-categorize from payee history: once the payee field loses focus
+  // on an exact match to an existing payee, ask for its suggested
+  // category (its own default, falling back to whichever category most
+  // often accompanies it) and fill it in — but only on a new transaction,
+  // and only into a still-uncategorized single split. An edit already has
+  // real categories to preserve; a deliberate pick made on this
+  // transaction before the (async) suggestion arrives is never
+  // overwritten, since the apply step re-checks the split is still
+  // uncategorized at that moment, not when the lookup started.
+  async function applyPayeeSuggestion() {
+    if (editing) return;
+    const trimmed = payeeName.trim().toLowerCase();
+    const payee = trimmed && payees.find((p) => p.name.toLowerCase() === trimmed);
+    if (!payee) return;
+    const { suggestedCategoryId } = await api.get<{ suggestedCategoryId: string | null }>(
+      `/api/budgets/${budgetId}/payees/${payee.id}`,
+    );
+    if (!suggestedCategoryId) return;
+    setSplits((prev) => (prev.length === 1 && prev[0].categoryId === null ? [{ ...prev[0], categoryId: suggestedCategoryId }] : prev));
+  }
 
   const selectableCategories = useMemo(
     () =>
@@ -254,6 +276,7 @@ function TransactionFormBody({
                   list="payee-list"
                   value={payeeName}
                   onChange={(e) => setPayeeName(e.target.value)}
+                  onBlur={applyPayeeSuggestion}
                   placeholder="e.g. Shell, Costco"
                 />
                 <datalist id="payee-list">

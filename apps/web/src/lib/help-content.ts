@@ -116,6 +116,12 @@ export const HELP_CATEGORIES: HelpCategory[] = [
           "Every transaction has at least one split (a category + amount); most have exactly one, matching the transaction's own total. A split transaction just has more than one — say a $120 Target run split $80 to Groceries and $40 to Household. The split amounts always have to add up to the transaction total.",
       },
       {
+        id: "auto-categorize-payee",
+        question: "Why did a category fill in by itself when I typed a payee?",
+        answer:
+          "When the payee you type or pick matches one you've used before, Montra suggests a category for it — either that payee's own default category (set from the Payees list) or, if it doesn't have one, whichever category you've most often used with it. It only fills in a category that's still blank, so it never overwrites one you already picked, and only on a new transaction (editing an existing one leaves its real categories alone).",
+      },
+      {
         id: "transfers",
         question: "How do transfers between accounts work?",
         answer:
