@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronLeft, ChevronRight, MoreVertical, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, Label } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { monthStart, addMonths } from "@montra/domain";
@@ -39,6 +40,7 @@ export function BudgetScreen({ budgetId, firstDayOfMonth }: { budgetId: string; 
   const [addCategoryFor, setAddCategoryFor] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<{ kind: "category" | "group"; id: string } | null>(null);
   const [newName, setNewName] = useState("");
+  const [newCategoryPrivate, setNewCategoryPrivate] = useState(false);
   const [autoAssignOpen, setAutoAssignOpen] = useState(false);
 
   const queryClient = useQueryClient();
@@ -95,8 +97,9 @@ export function BudgetScreen({ budgetId, firstDayOfMonth }: { budgetId: string; 
 
   async function createCategory(groupId: string) {
     if (!newName.trim()) return;
-    await api.post(`/api/budgets/${budgetId}/categories`, { groupId, name: newName.trim() });
+    await api.post(`/api/budgets/${budgetId}/categories`, { groupId, name: newName.trim(), isPrivate: newCategoryPrivate });
     setNewName("");
+    setNewCategoryPrivate(false);
     setAddCategoryFor(null);
     await invalidateGroups();
     toast.success("Category added.");
@@ -371,8 +374,21 @@ export function BudgetScreen({ budgetId, firstDayOfMonth }: { budgetId: string; 
             <DialogTitle>New category</DialogTitle>
           </DialogHeader>
           <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Groceries" autoFocus />
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1 text-sm">
+              <Label htmlFor="category-private">Private</Label>
+              <InfoTooltip content="Only you can see this category — on a budget shared with collaborators, it's left out of their category list, dropdowns, and totals entirely." />
+            </span>
+            <Switch id="category-private" checked={newCategoryPrivate} onCheckedChange={setNewCategoryPrivate} />
+          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddCategoryFor(null)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setAddCategoryFor(null);
+                setNewCategoryPrivate(false);
+              }}
+            >
               Cancel
             </Button>
             <Button onClick={() => addCategoryFor && createCategory(addCategoryFor)}>Create</Button>

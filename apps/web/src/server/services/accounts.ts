@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@montra/db";
 import { ConflictError, NotFoundError } from "@/server/api-helpers";
-import { requireBudgetOwnership } from "@/server/services/budgets";
+import { requireBudgetAccess } from "@/server/services/budgets";
 import { ensureCreditCardPaymentCategory } from "@/server/services/budget";
 import { findOrCreatePayee } from "@/server/services/payees";
 import { logAudit } from "@/server/services/audit";
@@ -36,7 +36,7 @@ export interface CreateAccountInput {
 }
 
 export async function createAccount(userId: string, budgetId: string, input: CreateAccountInput) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
 
   const account = await prisma.$transaction(async (tx) => {
     const created = await tx.account.create({
@@ -107,7 +107,7 @@ export async function getAccountBalances(accountIds: string[]): Promise<Record<s
 }
 
 export async function listAccounts(userId: string, budgetId: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const accounts = await prisma.account.findMany({
     where: { budgetId },
     orderBy: [{ isClosed: "asc" }, { createdAt: "asc" }],
@@ -118,7 +118,7 @@ export async function listAccounts(userId: string, budgetId: string) {
 }
 
 export async function getAccount(userId: string, budgetId: string, accountId: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const account = await requireAccountInBudget(accountId, budgetId);
   const balances = await getAccountBalances([accountId]);
   return { ...account, balances: balances[accountId] };
@@ -133,7 +133,7 @@ export interface UpdateAccountInput {
 }
 
 export async function updateAccount(userId: string, budgetId: string, accountId: string, patch: UpdateAccountInput) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   await requireAccountInBudget(accountId, budgetId);
   const updated = await prisma.account.update({ where: { id: accountId }, data: patch });
   await logAudit({ userId, action: "account.updated", entityType: "Account", entityId: accountId });
@@ -141,7 +141,7 @@ export async function updateAccount(userId: string, budgetId: string, accountId:
 }
 
 export async function deleteAccount(userId: string, budgetId: string, accountId: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   await requireAccountInBudget(accountId, budgetId);
 
   const transactionCount = await prisma.transaction.count({ where: { accountId } });

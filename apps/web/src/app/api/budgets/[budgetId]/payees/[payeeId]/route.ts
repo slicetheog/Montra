@@ -12,9 +12,9 @@ const patchSchema = z.object({
 
 export async function GET(_request: Request, { params }: Params) {
   return handleApi(async () => {
-    await requireSessionUser();
+    const user = await requireSessionUser();
     const { budgetId, payeeId } = await params;
-    const suggestedCategoryId = await suggestCategoryForPayee(budgetId, payeeId);
+    const suggestedCategoryId = await suggestCategoryForPayee(user.id, budgetId, payeeId);
     return { suggestedCategoryId };
   });
 }

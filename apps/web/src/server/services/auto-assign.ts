@@ -13,7 +13,7 @@ import {
   type AutoAssignPlan,
   type RecurringBillSeries,
 } from "@montra/domain";
-import { requireBudgetOwnership } from "@/server/services/budgets";
+import { requireBudgetAccess } from "@/server/services/budgets";
 import { resolveFirstDayOfMonth } from "@/server/services/settings";
 import { getMonthView, getReadyToAssign } from "@/server/services/budget";
 import { assignMoney } from "@/server/services/budget";
@@ -30,7 +30,7 @@ const HISTORY_PERIODS = 3;
  * applyAutoAssignPlan for actually committing a plan.
  */
 export async function getAutoAssignPlan(userId: string, budgetId: string, month: Date): Promise<AutoAssignPlan> {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const firstDayOfMonth = await resolveFirstDayOfMonth(userId);
   const periodStart = monthStart(month, firstDayOfMonth);
   const periodEndExclusive = monthEndExclusive(periodStart, firstDayOfMonth);
@@ -123,7 +123,7 @@ export async function applyAutoAssignPlan(
   month: Date,
   lines: { categoryId: string; amountCents: number }[],
 ) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   for (const line of lines) {
     if (line.amountCents <= 0) continue;
     await assignMoney(userId, budgetId, line.categoryId, month, cents(line.amountCents), "Auto-assigned");

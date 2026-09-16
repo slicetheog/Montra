@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@montra/db";
 import { cents, computeNetWorth, monthEndExclusive, monthRange, monthStart } from "@montra/domain";
-import { requireBudgetOwnership } from "@/server/services/budgets";
+import { requireBudgetAccess } from "@/server/services/budgets";
 import { getPortfolioSummary } from "@/server/services/holdings";
 import { ASSET_ACCOUNT_TYPES } from "@/lib/constants";
 
@@ -14,7 +14,7 @@ import { ASSET_ACCOUNT_TYPES } from "@/lib/constants";
  * services/holdings.ts's syncAccountValueToHoldings).
  */
 export async function getNetWorthNow(userId: string, budgetId: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const accounts = await prisma.account.findMany({ where: { budgetId }, select: { id: true, name: true, type: true } });
 
   const [sums, portfolio] = await Promise.all([
@@ -43,7 +43,7 @@ export async function getNetWorthNow(userId: string, budgetId: string) {
 
 /** Reconstructs net worth at the end of each of the last `months` months from the transaction ledger. */
 export async function getNetWorthHistory(userId: string, budgetId: string, months: number, asOf = new Date()) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const from = monthStart(new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth() - (months - 1), 1)));
 
   const transactions = await prisma.transaction.findMany({

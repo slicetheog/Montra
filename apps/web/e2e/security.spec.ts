@@ -148,3 +148,97 @@ test("AI assistant is unusable when the server has no API key configured, even v
   const recapAttempt = await alice.post(`/api/budgets/${aliceBudget.id}/ai-assistant/recap/2026-09`, { data: {} });
   expect(recapAttempt.status()).toBe(400);
 });
+
+/**
+ * Shared-budget multi-user isolation (spec: "real permissions", not just
+ * ownership). Reuses alice/bob rather than registering a third user, to
+ * respect this file's registration-rate-limit budget (see the header
+ * comment) — the "wrong email" test below proves the same email-binding
+ * check without needing another real account.
+ */
+test.describe("shared budgets", () => {
+  let bobEmail: string;
+  let inviteToken: string;
+  let bobMemberId: string;
+
+  test("an invited collaborator gets real read/write access once they accept", async () => {
+    const bobInfo = await (await bob.get("/api/auth/me")).json();
+    bobEmail = bobInfo.user.email;
+
+    // Before accepting, Bob has no access at all (already covered
+    // elsewhere in this file, but the invite flow shouldn't short-circuit
+    // that — confirm it's still true right up until acceptance).
+    const beforeAccept = await bob.get(`/api/budgets/${aliceBudget.id}`);
+    expect(beforeAccept.status()).toBe(403);
+
+    const invite = await alice.post(`/api/budgets/${aliceBudget.id}/members`, { data: { email: bobEmail } });
+    expect(invite.ok()).toBeTruthy();
+    const inviteBody = await invite.json();
+    inviteToken = new URL(inviteBody.inviteUrl).pathname.split("/").pop()!;
+    bobMemberId = inviteBody.member.id;
+
+    const accept = await bob.post(`/api/invites/${inviteToken}/accept`);
+    expect(accept.ok()).toBeTruthy();
+
+    // Real read AND write access — not just a 200 on GET.
+    const afterAccept = await bob.get(`/api/budgets/${aliceBudget.id}`);
+    expect(afterAccept.status()).toBe(200);
+    const rename = await bob.patch(`/api/budgets/${aliceBudget.id}`, { data: { name: "Alice & Bob's Budget" } });
+    expect(rename.ok()).toBeTruthy();
+  });
+
+  test("a collaborator cannot delete or archive the budget — owner-only", async () => {
+    const archiveAttempt = await bob.patch(`/api/budgets/${aliceBudget.id}`, { data: { isArchived: true } });
+    expect(archiveAttempt.status()).toBe(403);
+
+    const deleteAttempt = await bob.delete(`/api/budgets/${aliceBudget.id}`);
+    expect(deleteAttempt.status()).toBe(403);
+
+    // Budget must still exist and be unarchived for the rest of this suite.
+    const stillThere = await alice.get(`/api/budgets/${aliceBudget.id}`);
+    expect(stillThere.ok()).toBeTruthy();
+    expect((await stillThere.json()).isArchived).toBe(false);
+  });
+
+  test("an invite can only be accepted by the exact email it was sent to", async () => {
+    const otherEmail = `not-bob-${Date.now()}@example.com`;
+    const invite = await alice.post(`/api/budgets/${aliceBudget.id}/members`, { data: { email: otherEmail } });
+    const inviteBody = await invite.json();
+    const otherToken = new URL(inviteBody.inviteUrl).pathname.split("/").pop()!;
+
+    // Bob is a real, logged-in user, but not the one this invite was sent to.
+    const wrongPersonAccepts = await bob.post(`/api/invites/${otherToken}/accept`);
+    expect(wrongPersonAccepts.status()).toBe(400);
+
+    // Clean up so it doesn't linger as a dangling pending invite for other tests.
+    await alice.delete(`/api/budgets/${aliceBudget.id}/members/${inviteBody.member.id}`);
+  });
+
+  test("a private category is invisible to other collaborators, even by direct id", async () => {
+    const group = await (await alice.post(`/api/budgets/${aliceBudget.id}/category-groups`, { data: { name: "Alice Private Group" } })).json();
+    const category = await (
+      await alice.post(`/api/budgets/${aliceBudget.id}/categories`, { data: { groupId: group.id, name: "Alice's Secret Fund", isPrivate: true } })
+    ).json();
+
+    const bobsCategoryList = await (await bob.get(`/api/budgets/${aliceBudget.id}/categories`)).json();
+    const bobSeesIt = bobsCategoryList.some((g: { categories: { id: string }[] }) => g.categories.some((c: { id: string }) => c.id === category.id));
+    expect(bobSeesIt).toBe(false);
+
+    // Not just hidden from listings — unreachable by direct id too.
+    const bobRenameAttempt = await bob.patch(`/api/budgets/${aliceBudget.id}/categories/${category.id}`, { data: { name: "Renamed" } });
+    expect(bobRenameAttempt.status()).toBe(404);
+
+    // The owner still sees and controls it normally.
+    const aliceCategoryList = await (await alice.get(`/api/budgets/${aliceBudget.id}/categories`)).json();
+    const aliceSeesIt = aliceCategoryList.some((g: { categories: { id: string }[] }) => g.categories.some((c: { id: string }) => c.id === category.id));
+    expect(aliceSeesIt).toBe(true);
+  });
+
+  test("removing a collaborator revokes their access immediately", async () => {
+    const remove = await alice.delete(`/api/budgets/${aliceBudget.id}/members/${bobMemberId}`);
+    expect(remove.ok()).toBeTruthy();
+
+    const afterRemoval = await bob.get(`/api/budgets/${aliceBudget.id}`);
+    expect(afterRemoval.status()).toBe(403);
+  });
+});

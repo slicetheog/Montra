@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { handleApi, ForbiddenError, NotFoundError } from "@/server/api-helpers";
 import { requireSessionUser } from "@/server/auth/session";
-import { requireBudgetOwnership } from "@/server/services/budgets";
+import { requireBudgetAccess } from "@/server/services/budgets";
 import { logAudit } from "@/server/services/audit";
 import { prisma } from "@montra/db";
 
@@ -22,7 +22,7 @@ export async function PATCH(request: Request, { params }: Params) {
   return handleApi(async () => {
     const user = await requireSessionUser();
     const { budgetId, groupId } = await params;
-    await requireBudgetOwnership(budgetId, user.id);
+    await requireBudgetAccess(budgetId, user.id);
     const group = await requireGroupInBudget(groupId, budgetId);
     if (group.isSystem) throw new ForbiddenError("This group is managed automatically.");
 

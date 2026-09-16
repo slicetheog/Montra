@@ -3,7 +3,7 @@ import { prisma } from "@montra/db";
 import type { AccountType } from "@prisma/client";
 import { cents, computeDebtPayoffProjection, simulateDebtPayoffStrategy, type DebtStrategyInput } from "@montra/domain";
 import { ValidationError } from "@/server/api-helpers";
-import { requireBudgetOwnership } from "@/server/services/budgets";
+import { requireBudgetAccess } from "@/server/services/budgets";
 import { requireAccountInBudget } from "@/server/services/accounts";
 import { logAudit } from "@/server/services/audit";
 
@@ -18,7 +18,7 @@ export interface UpsertDebtInput {
 }
 
 export async function upsertDebtDetails(userId: string, budgetId: string, accountId: string, input: UpsertDebtInput) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const account = await requireAccountInBudget(accountId, budgetId);
   if (!DEBT_ACCOUNT_TYPE_SET.has(account.type)) {
     throw new ValidationError("Only credit card, loan, and other liability accounts can track debt details.");
@@ -34,7 +34,7 @@ export async function upsertDebtDetails(userId: string, budgetId: string, accoun
 }
 
 export async function listDebts(userId: string, budgetId: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const accounts = await prisma.account.findMany({
     where: { budgetId, type: { in: DEBT_ACCOUNT_TYPES }, debt: { isNot: null } },
     include: { debt: true },

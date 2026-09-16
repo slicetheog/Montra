@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@montra/db";
 import { catchUpSchedule, cents, projectCashFlow, type ForecastSeriesInput } from "@montra/domain";
 import type { AccountType } from "@prisma/client";
-import { requireBudgetOwnership } from "@/server/services/budgets";
+import { requireBudgetAccess } from "@/server/services/budgets";
 
 const CASH_ACCOUNT_TYPES: AccountType[] = ["CHECKING", "SAVINGS", "CASH"];
 
@@ -21,7 +21,7 @@ const CASH_ACCOUNT_TYPES: AccountType[] = ["CHECKING", "SAVINGS", "CASH"];
  * itself — that only happens through materializeDueRecurring.
  */
 export async function getCashFlowForecast(userId: string, budgetId: string, horizonDays = 60) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const asOf = new Date();
 
   const cashAccounts = await prisma.account.findMany({

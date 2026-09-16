@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@montra/db";
 import { monthStart, cents, computeDebtPayoffProjection, computeGoalProgress, computeRecommendedMonthlyContribution, computeEstimatedCompletionDate } from "@montra/domain";
 import { NotFoundError, ValidationError } from "@/server/api-helpers";
-import { requireBudgetOwnership } from "@/server/services/budgets";
+import { requireBudgetAccess } from "@/server/services/budgets";
 import { getCategoryAvailable, getMonthView } from "@/server/services/budget";
 import { resolveFirstDayOfMonth } from "@/server/services/settings";
 import { logAudit } from "@/server/services/audit";
@@ -38,7 +38,7 @@ function validateGoalInput(input: CreateGoalInput) {
 }
 
 export async function createGoal(userId: string, budgetId: string, input: CreateGoalInput) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   validateGoalInput(input);
 
   if (input.categoryId) {
@@ -68,7 +68,7 @@ export async function createGoal(userId: string, budgetId: string, input: Create
 }
 
 export async function updateGoal(userId: string, budgetId: string, goalId: string, input: Partial<CreateGoalInput>) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const existing = await prisma.goal.findUnique({ where: { id: goalId } });
   if (!existing || existing.budgetId !== budgetId) throw new NotFoundError("That goal couldn't be found.");
 
@@ -87,7 +87,7 @@ export async function updateGoal(userId: string, budgetId: string, goalId: strin
 }
 
 export async function deleteGoal(userId: string, budgetId: string, goalId: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const existing = await prisma.goal.findUnique({ where: { id: goalId } });
   if (!existing || existing.budgetId !== budgetId) throw new NotFoundError("That goal couldn't be found.");
   await prisma.goal.delete({ where: { id: goalId } });
@@ -95,7 +95,7 @@ export async function deleteGoal(userId: string, budgetId: string, goalId: strin
 }
 
 export async function listGoals(userId: string, budgetId: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const goals = await prisma.goal.findMany({
     where: { budgetId },
     orderBy: { createdAt: "asc" },
@@ -191,7 +191,7 @@ const PRIORITY_RANK: Record<GoalPriority, number> = { HIGH: 0, MEDIUM: 1, LOW: 2
  * to Assign.
  */
 export async function getGoalFeasibility(userId: string, budgetId: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const now = new Date();
   const [month, goals] = await Promise.all([
     // Raw `now`, not a pre-normalized monthStart(now) — getMonthView

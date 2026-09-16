@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@montra/db";
 import { addMonths, cents, computeSpendingPace, monthEndExclusive, monthStart } from "@montra/domain";
-import { requireBudgetOwnership } from "@/server/services/budgets";
+import { requireBudgetAccess } from "@/server/services/budgets";
 import { getMonthView } from "@/server/services/budget";
 import { getNetWorthNow } from "@/server/services/net-worth";
 import { listGoals } from "@/server/services/goals";
@@ -12,7 +12,7 @@ import { resolveFirstDayOfMonth } from "@/server/services/settings";
 const DAY_MS = 86_400_000;
 
 export async function getDashboardSummary(userId: string, budgetId: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const now = new Date();
   const firstDayOfMonth = await resolveFirstDayOfMonth(userId);
   const monthStartDate = monthStart(now, firstDayOfMonth);

@@ -3,7 +3,7 @@ import { prisma } from "@montra/db";
 import type { Prisma } from "@prisma/client";
 import { assertSplitsSumToTotal, cents, parseDecimalToCents, MoneyError } from "@montra/domain";
 import { ConflictError, NotFoundError, ValidationError } from "@/server/api-helpers";
-import { requireBudgetOwnership } from "@/server/services/budgets";
+import { requireBudgetAccess } from "@/server/services/budgets";
 import { requireAccountInBudget } from "@/server/services/accounts";
 import { findOrCreatePayee } from "@/server/services/payees";
 import { applyCreditCardOffset, requireCategoryInBudget, reverseCreditCardOffsetsForTransaction } from "@/server/services/budget";
@@ -56,9 +56,9 @@ async function resolvePayeeId(
  * category belonging to a different budget (or a different user
  * entirely), corrupting its Available/Activity totals.
  */
-async function requireSplitCategoriesInBudget(budgetId: string, splits: { categoryId: string | null }[]) {
+async function requireSplitCategoriesInBudget(budgetId: string, userId: string, splits: { categoryId: string | null }[]) {
   const categoryIds = [...new Set(splits.map((s) => s.categoryId).filter((id): id is string => Boolean(id)))];
-  await Promise.all(categoryIds.map((id) => requireCategoryInBudget(id, budgetId)));
+  await Promise.all(categoryIds.map((id) => requireCategoryInBudget(id, budgetId, userId)));
 }
 
 /** Applies the credit-card auto-offset for every real-category outflow split on a CC account transaction. */
@@ -107,7 +107,7 @@ async function autoTransferSplitsForCreditCard(
 }
 
 export async function createTransaction(userId: string, budgetId: string, input: CreateTransactionInput) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   await requireAccountInBudget(input.accountId, budgetId);
 
   if (input.type === "TRANSFER") {
@@ -167,7 +167,7 @@ export async function createTransaction(userId: string, budgetId: string, input:
 
   const splits = input.splits ?? [];
   assertSplitsSumToTotal(cents(input.amountCents), splits.map((s) => cents(s.amountCents)));
-  await requireSplitCategoriesInBudget(budgetId, splits);
+  await requireSplitCategoriesInBudget(budgetId, userId, splits);
   const firstDayOfMonth = await resolveFirstDayOfMonth(userId);
 
   const transaction = await prisma.$transaction(async (tx) => {
@@ -239,7 +239,7 @@ export async function updateTransaction(
   transactionId: string,
   patch: UpdateTransactionInput,
 ) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const existing = await requireTransactionInBudget(transactionId, budgetId);
 
   // Never trust a client-supplied accountId without checking it's in this
@@ -282,7 +282,7 @@ export async function updateTransaction(
   const nextSplits =
     patch.splits ?? existing.splits.map((s) => ({ categoryId: s.categoryId, amountCents: s.amountCents, memo: s.memo ?? undefined }));
   assertSplitsSumToTotal(cents(nextAmount), nextSplits.map((s) => cents(s.amountCents)));
-  if (patch.splits) await requireSplitCategoriesInBudget(budgetId, patch.splits);
+  if (patch.splits) await requireSplitCategoriesInBudget(budgetId, userId, patch.splits);
   const firstDayOfMonth = await resolveFirstDayOfMonth(userId);
 
   const updated = await prisma.$transaction(async (tx) => {
@@ -320,7 +320,7 @@ export async function updateTransaction(
 }
 
 export async function deleteTransaction(userId: string, budgetId: string, transactionId: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const existing = await requireTransactionInBudget(transactionId, budgetId);
 
   if (existing.cleared === "RECONCILED") {
@@ -363,7 +363,7 @@ function searchAmountVariants(search: string): number[] {
 }
 
 export async function listTransactions(userId: string, budgetId: string, filters: ListTransactionsFilters) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const limit = filters.limit ?? 50;
   const amountMatches = filters.search ? searchAmountVariants(filters.search) : [];
 
@@ -404,7 +404,7 @@ export async function listTransactions(userId: string, budgetId: string, filters
 }
 
 export async function getTransaction(userId: string, budgetId: string, transactionId: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const row = await prisma.transaction.findFirstOrThrow({
     where: { id: transactionId, budgetId },
     include: {

@@ -397,4 +397,29 @@ export const HELP_CATEGORIES: HelpCategory[] = [
       },
     ],
   },
+  {
+    id: "sharing",
+    title: "Sharing a Budget",
+    description: "Collaborate on one budget with a partner, roommate, or family member.",
+    articles: [
+      {
+        id: "sharing-how-to-invite",
+        question: "How do I share a budget with someone?",
+        answer:
+          "From Settings → Budgets, click \"Share\" on the budget and enter their email. Montra has no email delivery of its own, so it gives you a link to copy and send them yourself — send it however you normally would (text, email, whatever). Opening it and accepting only works when they're logged in with that exact email address.",
+      },
+      {
+        id: "sharing-what-collaborators-can-do",
+        question: "What can a collaborator do?",
+        answer:
+          "Everything you can, day to day — assign money, add and categorize transactions, create goals and recurring bills, reconcile accounts. The only things kept owner-only are deleting the budget and managing who's on it (inviting or removing collaborators). Anyone can leave a shared budget themselves at any time from the same Share dialog.",
+      },
+      {
+        id: "sharing-private-categories",
+        question: "What does marking a category \"Private\" actually hide?",
+        answer:
+          "A private category disappears from every other collaborator's category list, category dropdowns, and category-based Reports breakdowns entirely — they can't see it exists, assign to it, or reach it by id. It does NOT hide the transactions themselves from the shared account ledger, CSV export, or Dashboard's recent activity — everyone sharing a budget already sees a shared account's real payees and amounts regardless of category, so \"private\" is about the budgeting/planning view, not the underlying account activity.",
+      },
+    ],
+  },
 ];

@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@montra/db";
 import type { Prisma } from "@prisma/client";
 import { ValidationError } from "@/server/api-helpers";
-import { requireBudgetOwnership } from "@/server/services/budgets";
+import { requireBudgetAccess } from "@/server/services/budgets";
 
 type Client = typeof prisma | Prisma.TransactionClient;
 
@@ -15,12 +15,12 @@ export async function findOrCreateTag(db: Client, budgetId: string, name: string
 }
 
 export async function listTags(userId: string, budgetId: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   return prisma.tag.findMany({ where: { budgetId }, orderBy: { name: "asc" } });
 }
 
 export async function deleteTag(userId: string, budgetId: string, tagId: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const tag = await prisma.tag.findFirst({ where: { id: tagId, budgetId } });
   if (!tag) throw new ValidationError("Tag not found.");
   await prisma.tag.delete({ where: { id: tagId } });
@@ -32,7 +32,7 @@ export async function deleteTag(userId: string, budgetId: string, tagId: string)
  * atomically so a transaction never ends up with a partial update.
  */
 export async function setTransactionTags(userId: string, budgetId: string, transactionId: string, tagNames: string[]) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const transaction = await prisma.transaction.findFirst({ where: { id: transactionId, budgetId } });
   if (!transaction) throw new ValidationError("Transaction not found.");
 
