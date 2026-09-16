@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronLeft, ChevronRight, MoreVertical, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, MoreVertical, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -11,7 +11,14 @@ import { monthStart, addMonths } from "@montra/domain";
 import { CategoryRow, CategoryRowHeader } from "@/components/budget/category-row";
 import { MoveMoneyDialog } from "@/components/budget/move-money-dialog";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { useAssignMoney, useBudgetMonth, useMoveMoney, type CategoryMonthView } from "@/hooks/use-budget-month";
+import {
+  useAssignMoney,
+  useApplyAutoAssign,
+  useAutoAssignPlan,
+  useBudgetMonth,
+  useMoveMoney,
+  type CategoryMonthView,
+} from "@/hooks/use-budget-month";
 import { formatMonthLabel, cn } from "@/lib/utils";
 import { useFormatCents } from "@/hooks/use-locale-format";
 import { api, ApiRequestError } from "@/lib/api-client";
@@ -32,12 +39,33 @@ export function BudgetScreen({ budgetId, firstDayOfMonth }: { budgetId: string; 
   const [addCategoryFor, setAddCategoryFor] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<{ kind: "category" | "group"; id: string } | null>(null);
   const [newName, setNewName] = useState("");
+  const [autoAssignOpen, setAutoAssignOpen] = useState(false);
 
   const queryClient = useQueryClient();
   const formatCents = useFormatCents();
   const { data, isLoading } = useBudgetMonth(budgetId, month);
   const assignMoney = useAssignMoney(budgetId, month);
   const moveMoney = useMoveMoney(budgetId, month);
+  const { data: autoAssignPlan, isLoading: autoAssignLoading } = useAutoAssignPlan(budgetId, month, autoAssignOpen);
+  const applyAutoAssign = useApplyAutoAssign(budgetId, month);
+
+  const categoryNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    data?.groups.forEach((g) => g.categories.forEach((c) => map.set(c.categoryId, c.name)));
+    return map;
+  }, [data]);
+
+  async function confirmAutoAssign() {
+    if (!autoAssignPlan || autoAssignPlan.lines.length === 0) return;
+    const lines = autoAssignPlan.lines.map((l) => ({ categoryId: l.categoryId, amountCents: l.amountCents }));
+    try {
+      await applyAutoAssign.mutateAsync(lines);
+      setAutoAssignOpen(false);
+      toast.success(`Assigned ${formatCents(autoAssignPlan.totalCents)} across ${lines.length} ${lines.length === 1 ? "category" : "categories"}.`);
+    } catch {
+      toast.error("Couldn't apply the plan. Please try again.");
+    }
+  }
 
   function shiftMonth(delta: number) {
     setMonth((m) => addMonths(m, delta, firstDayOfMonth));
@@ -187,6 +215,12 @@ export function BudgetScreen({ budgetId, firstDayOfMonth }: { budgetId: string; 
                   ? "You've assigned more than you have. Reduce some assignments below."
                   : "Available to budget — assign it to your priorities below."}
             </p>
+            {readyToAssign > 0 && (
+              <Button variant="outline" size="sm" className="mt-2" onClick={() => setAutoAssignOpen(true)}>
+                <Sparkles className="size-3.5" />
+                Auto-assign
+              </Button>
+            )}
           </div>
           <div className="flex gap-6 text-right text-sm">
             <div>
@@ -362,6 +396,67 @@ export function BudgetScreen({ budgetId, firstDayOfMonth }: { budgetId: string; 
               Cancel
             </Button>
             <Button onClick={submitRename}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={autoAssignOpen} onOpenChange={setAutoAssignOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-1.5">
+              <Sparkles className="size-4 text-brand" />
+              Auto-assign
+              <InfoTooltip content="Suggests an assignment for every category from what Montra already knows: recurring bills due this period, and — for categories with no bill of their own — a recent spending average. Nothing is assigned until you apply it." />
+            </DialogTitle>
+          </DialogHeader>
+
+          {autoAssignLoading ? (
+            <div className="h-32 animate-pulse rounded-lg bg-surface-muted" />
+          ) : !autoAssignPlan || autoAssignPlan.lines.length === 0 ? (
+            <p className="py-6 text-center text-sm text-foreground-muted">
+              Nothing to suggest right now — every category already looks covered.
+            </p>
+          ) : (
+            <>
+              <div className="flex max-h-80 flex-col gap-1 overflow-y-auto">
+                {autoAssignPlan.lines.map((line) => (
+                  <div key={line.categoryId} className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="truncate">{categoryNameById.get(line.categoryId) ?? "Unknown category"}</span>
+                      <span className="shrink-0 rounded-full bg-surface-muted px-1.5 py-0.5 text-[10px] font-medium text-foreground-muted">
+                        {line.source === "recurring" ? "Recurring bill" : "Recent average"}
+                      </span>
+                    </div>
+                    <span className="shrink-0 font-medium tabular-nums text-positive">+{formatCents(line.amountCents)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-col gap-1 border-t border-border pt-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-foreground-muted">Total to assign</span>
+                  <span className="font-semibold tabular-nums">{formatCents(autoAssignPlan.totalCents)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-foreground-muted">Ready to Assign after</span>
+                  <span className="font-medium tabular-nums">{formatCents(autoAssignPlan.remainingCents)}</span>
+                </div>
+                {autoAssignPlan.wasScaledDown && (
+                  <p className="mt-1 text-xs text-foreground-muted">
+                    These bills and averages added up to more than you have Ready to Assign, so every suggestion was scaled down
+                    proportionally to fit.
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAutoAssignOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={confirmAutoAssign} disabled={!autoAssignPlan || autoAssignPlan.lines.length === 0 || applyAutoAssign.isPending}>
+              {applyAutoAssign.isPending ? "Assigning…" : "Apply"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

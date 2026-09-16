@@ -73,6 +73,12 @@ export const HELP_CATEGORIES: HelpCategory[] = [
           "Click the Assigned amount on any category row and type the new total for the month. It's a direct edit, not an add — typing 20.00 sets that category's assignment to exactly $20 for the month, however much was there before.",
       },
       {
+        id: "auto-assign",
+        question: "What does \"Auto-assign\" do?",
+        answer:
+          "Suggests an assignment for every category from what Montra already knows, instead of you assigning each one by hand: for a category with a recurring bill, it suggests exactly what's due this period; for one without, it suggests a recent spending average. A category that already has enough Available to cover what it needs gets no suggestion at all — it's never double-funded. If the suggestions add up to more than you have Ready to Assign, every one is scaled down proportionally rather than fully funding some and skipping others. Nothing is actually assigned until you review the list and click Apply.",
+      },
+      {
         id: "rename-delete-category",
         question: "How do I rename or delete a category or category group?",
         answer:

@@ -245,6 +245,55 @@ test("full budgeting lifecycle", async ({ page }) => {
   // At least one pay period row, bounded by the twice-a-month paycheck.
   await expect(page.getByText(/OK|Short/).first()).toBeVisible();
 
+  // 12d. Auto-assign: a fresh category with a recurring bill due this
+  // period should get suggested exactly that bill's amount, and applying
+  // it should actually assign it.
+  await page.goto("/budget");
+  await page.getByRole("button", { name: "Add category group" }).click();
+  await page.getByPlaceholder("e.g. Housing").fill("Autopilot Group");
+  await page.getByRole("dialog", { name: "New category group" }).getByRole("button", { name: "Create" }).click();
+  await expect(page.getByText("Category group added.")).toBeVisible();
+
+  const groupsForAuto = await (await page.request.get(`/api/budgets/${budgetId}/categories`)).json();
+  const autopilotGroupId = groupsForAuto.find((g: { name: string }) => g.name === "Autopilot Group").id;
+  await page.locator(`[data-testid="category-group-${autopilotGroupId}"]`).getByRole("button", { name: "Category" }).click();
+  await page.getByPlaceholder("e.g. Groceries").fill("Streaming Bill");
+  await page.getByRole("dialog", { name: "New category" }).getByRole("button", { name: "Create" }).click();
+  await expect(page.getByText("Category added.")).toBeVisible();
+
+  // A monthly bill starting today lands in the current period. Auto-create
+  // is switched off so it stays a reminder-only, not-yet-materialized bill
+  // — the scenario Auto-assign is actually meant to suggest for (a bill
+  // that hasn't happened yet), rather than one the app would otherwise
+  // immediately record as a real transaction on its own.
+  await page.goto("/recurring");
+  await page.getByRole("button", { name: "New recurring transaction" }).click();
+  const autoRecurDialog = page.getByRole("dialog", { name: "New recurring transaction" });
+  await autoRecurDialog.getByRole("combobox").nth(1).click(); // Account (Type is nth(0))
+  await page.getByRole("option", { name: "Checking" }).click();
+  await autoRecurDialog.getByLabel("Payee").fill("Streaming Service");
+  await autoRecurDialog.getByLabel("Amount", { exact: true }).fill("25");
+  await autoRecurDialog.getByRole("combobox").nth(2).click(); // Category (Type=0, Account=1)
+  await page.getByRole("option", { name: /Streaming Bill/ }).click();
+  await autoRecurDialog.getByRole("switch").click();
+  await autoRecurDialog.getByRole("button", { name: "Create" }).click();
+  await expect(page.getByText("Recurring transaction created.")).toBeVisible();
+
+  await page.goto("/budget");
+  await page.getByRole("button", { name: "Auto-assign" }).click();
+  const autoAssignDialog = page.getByRole("dialog", { name: "Auto-assign" });
+  await expect(autoAssignDialog.getByText("Streaming Bill")).toBeVisible();
+  await expect(autoAssignDialog.getByText("Recurring bill")).toBeVisible();
+  await expect(autoAssignDialog.getByText("+$25.00")).toBeVisible();
+  await autoAssignDialog.getByRole("button", { name: "Apply" }).click();
+  await expect(page.getByText(/Assigned .* across/)).toBeVisible();
+
+  const categoriesAfterAuto = await (await page.request.get(`/api/budgets/${budgetId}/categories`)).json();
+  const streamingBillId = categoriesAfterAuto
+    .flatMap((g: { categories: { id: string; name: string }[] }) => g.categories)
+    .find((c: { name: string }) => c.name === "Streaming Bill").id;
+  await expect(page.locator(`[data-testid="available-${streamingBillId}"]:visible`)).toHaveText("$25.00");
+
   // 13. Import a CSV
   const csvPath = path.join(os.tmpdir(), `e2e-import-${unique}.csv`);
   fs.writeFileSync(csvPath, "Date,Payee,Amount,Memo\n2026-08-01,Gas Station,-40.00,Fill up\n");

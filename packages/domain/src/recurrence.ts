@@ -84,6 +84,10 @@ export function monthlyEquivalentCents(amountCents: Cents, frequency: Recurrence
  * because nobody's acted on it yet. Mirrors
  * services/recurring.ts's materializeDueRecurring loop, purely computed —
  * it never writes anything back.
+ *
+ * Compares against the start of `asOf`'s day, not `asOf` itself: a bill
+ * due today (stored at midnight) hasn't been skipped just because it's
+ * currently afternoon — it's still today's occurrence, not an overdue one.
  */
 export function catchUpSchedule(params: {
   nextOccurrenceDate: Date;
@@ -96,10 +100,11 @@ export function catchUpSchedule(params: {
   maxSteps?: number;
 }): { nextOccurrenceDate: Date; occurrencesCreated: number } {
   const { frequency, intervalCount = 1, occurrencesLimit, endDate, asOf, maxSteps = 1000 } = params;
+  const asOfDayStart = Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate());
   let cursor = params.nextOccurrenceDate;
   let created = params.occurrencesCreated ?? 0;
   let steps = 0;
-  while (cursor.getTime() < asOf.getTime() && steps < maxSteps) {
+  while (cursor.getTime() < asOfDayStart && steps < maxSteps) {
     if (occurrencesLimit != null && created >= occurrencesLimit) break;
     if (endDate && cursor.getTime() > endDate.getTime()) break;
     created += 1;
