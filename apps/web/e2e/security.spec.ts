@@ -135,3 +135,16 @@ test("cross-origin mutating requests are rejected", async ({ baseURL }) => {
   const res = await ctx.post("/api/auth/login", { data: { email: "a@b.com", password: "x" } });
   expect(res.status()).toBe(403);
 });
+
+// The e2e environment never sets ANTHROPIC_API_KEY (see playwright.config.ts),
+// so this also proves the server-side gate is real — not just a hidden UI —
+// even for a user who somehow flips their own Settings toggle on.
+test("AI assistant is unusable when the server has no API key configured, even via a direct API call", async () => {
+  const askAttempt = await alice.post(`/api/budgets/${aliceBudget.id}/ai-assistant/ask`, {
+    data: { question: "How much do I have left in groceries?" },
+  });
+  expect(askAttempt.status()).toBe(400);
+
+  const recapAttempt = await alice.post(`/api/budgets/${aliceBudget.id}/ai-assistant/recap/2026-09`, { data: {} });
+  expect(recapAttempt.status()).toBe(400);
+});

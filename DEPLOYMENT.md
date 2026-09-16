@@ -24,6 +24,8 @@ staging/production.
 | `STRIPE_WEBHOOK_SECRET` | Only if `stripe` | Verifies `POST /api/webhooks/stripe` came from Stripe. |
 | `STRIPE_REMOVE_ADS_PRICE_ID` | Only if `stripe` | The Stripe Price ID for the one-time $4.99 Remove Ads purchase. |
 | `SEED_DEMO_SECRET` | No | Enables `GET /api/dev/seed-demo?secret=...` to populate a demo account from a browser — see the root README's "Demo account" section. Leave unset unless you're actively using it. |
+| `ANTHROPIC_API_KEY` | No | Enables the AI Assistant (natural-language Q&A + monthly recaps, see server/ai/). Leave unset to keep the feature entirely inert — every user's own Settings toggle also defaults to off, so both a billed key AND an explicit per-user opt-in are required before a single API call is ever made. |
+| `ANTHROPIC_MODEL` | No | Overrides the Claude model used for the AI Assistant. Defaults to a small, low-cost model — see server/ai/claude-provider.ts. |
 
 `NODE_ENV=production` (set automatically by `next build`/`next start`)
 additionally controls whether the session cookie is marked `secure` —

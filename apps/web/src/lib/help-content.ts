@@ -372,4 +372,29 @@ export const HELP_CATEGORIES: HelpCategory[] = [
       },
     ],
   },
+  {
+    id: "ai-assistant",
+    title: "AI Assistant",
+    description: "Ask questions about your budget in plain English, and get an AI-written monthly recap.",
+    articles: [
+      {
+        id: "ai-assistant-setup",
+        question: "Why can't I turn on the AI Assistant?",
+        answer:
+          "It needs a billed Anthropic API key configured on the server (each question is a real, metered API call, so it's off until an administrator deliberately sets one up). Once configured, it's still off by default for every account — turn it on yourself in Settings → Preferences to start using it.",
+      },
+      {
+        id: "ai-assistant-what-it-sees",
+        question: "What does the AI Assistant actually see?",
+        answer:
+          "A compact summary of your current budget: category names with their assigned/spent/available amounts, upcoming bills, goal progress, and net worth — never your login credentials, and never your full transaction history. Answers come only from that summary, so if it doesn't know something, it'll say so rather than guess.",
+      },
+      {
+        id: "ai-assistant-recap",
+        question: "How does the monthly recap work?",
+        answer:
+          "Click \"Generate recap\" on the Assistant page for a short, plain-English summary of the current period. It's cached once generated, so revisiting the page doesn't trigger another API call — click \"Regenerate\" if you want a fresh one after your budget's changed.",
+      },
+    ],
+  },
 ];

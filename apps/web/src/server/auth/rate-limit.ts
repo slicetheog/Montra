@@ -50,6 +50,10 @@ class InMemoryRateLimiter implements RateLimiter {
 export const loginRateLimiter: RateLimiter = new InMemoryRateLimiter(10, 15 * 60 * 1000); // 10 / 15min
 export const registerRateLimiter: RateLimiter = new InMemoryRateLimiter(5, 60 * 60 * 1000); // 5 / hour
 export const mutationRateLimiter: RateLimiter = new InMemoryRateLimiter(120, 60 * 1000); // 120 / min general API writes
+// Every call here is a real, billed Claude API request, so this caps a
+// single user's worst-case cost exposure much tighter than the general
+// mutation limit above.
+export const aiAssistantRateLimiter: RateLimiter = new InMemoryRateLimiter(20, 60 * 60 * 1000); // 20 / hour
 
 export function clientKeyFrom(headers: Headers, extra = ""): string {
   const ip = headers.get("x-forwarded-for")?.split(",")[0].trim() ?? headers.get("x-real-ip") ?? "unknown";

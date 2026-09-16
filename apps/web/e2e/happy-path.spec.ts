@@ -378,6 +378,19 @@ test("full budgeting lifecycle", async ({ page }) => {
   await page.goto("/net-worth");
   await expect(page.getByRole("heading", { name: "Investments" })).toBeVisible();
 
+  // 14f. AI Assistant: off by default, and unusable, since this e2e
+  // environment never sets ANTHROPIC_API_KEY (see playwright.config.ts) —
+  // confirms the safe default renders correctly rather than ever actually
+  // calling out to a real, billed API from a test run.
+  await page.goto("/assistant");
+  await expect(page.getByRole("heading", { name: "AI Assistant" })).toBeVisible();
+  await expect(page.getByText(/administrator needs to add a billed Anthropic API key/)).toBeVisible();
+
+  await page.goto("/settings?tab=preferences");
+  const aiToggle = page.getByRole("switch").last();
+  await expect(aiToggle).toBeDisabled();
+  await expect(page.getByText(/administrator needs to add a billed Anthropic API key/)).toBeVisible();
+
   // 14b. Help center: browse a topic, then search across all of them
   await page.goto("/help");
   await expect(page.getByRole("heading", { name: "Help Center" })).toBeVisible();

@@ -28,6 +28,7 @@ export async function updateUserSettings(
     firstDayOfMonth: number;
     theme: "LIGHT" | "DARK" | "SYSTEM";
     notificationsEnabled: boolean;
+    aiAssistantEnabled: boolean;
     completeOnboarding: boolean;
   }>,
 ) {
@@ -38,6 +39,7 @@ export async function updateUserSettings(
     firstDayOfMonth: patch.firstDayOfMonth,
     theme: patch.theme,
     notificationsEnabled: patch.notificationsEnabled,
+    aiAssistantEnabled: patch.aiAssistantEnabled,
     onboardingCompletedAt,
   };
 

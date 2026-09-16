@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { LayoutDashboard, PiggyBank, Landmark, Target, CreditCard, BarChart3, TrendingUp, Waves, Settings } from "lucide-react";
+import { LayoutDashboard, PiggyBank, Landmark, Target, CreditCard, BarChart3, TrendingUp, Waves, Bot, Settings } from "lucide-react";
 
 export interface NavItem {
   href: string;
@@ -18,5 +18,6 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/cash-flow", label: "Cash Flow", icon: Waves },
   { href: "/reports", label: "Reports", icon: BarChart3, mobile: true },
   { href: "/net-worth", label: "Net Worth", icon: TrendingUp },
+  { href: "/assistant", label: "Assistant", icon: Bot },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

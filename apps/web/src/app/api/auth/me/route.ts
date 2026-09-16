@@ -1,6 +1,7 @@
 import { prisma } from "@montra/db";
 import { handleApi } from "@/server/api-helpers";
 import { getSessionUser } from "@/server/auth/session";
+import { isAiAssistantConfigured } from "@/server/ai";
 
 export async function GET() {
   return handleApi(async () => {
@@ -23,6 +24,7 @@ export async function GET() {
       adsRemoved: entitlement?.adsRemoved ?? false,
       budgets,
       needsOnboarding: !settings?.onboardingCompletedAt,
+      aiAssistantAvailable: isAiAssistantConfigured(),
     };
   });
 }

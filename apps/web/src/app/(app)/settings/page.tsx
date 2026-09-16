@@ -132,6 +132,24 @@ function SettingsInner() {
                     onCheckedChange={(v) => updateSettings.mutate({ notificationsEnabled: v })}
                   />
                 </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="flex items-center gap-1 text-sm font-medium">
+                      AI Budgeting Assistant
+                      <InfoTooltip content="Uses the Claude API to answer questions about your real budget data and write plain-English monthly recaps. Off by default — turning it on is the only way it ever gets used, and each question is a real, metered API call." />
+                    </p>
+                    <p className="text-xs text-foreground-muted">
+                      {me?.aiAssistantAvailable
+                        ? "Ask questions about your budget and get AI-written monthly recaps."
+                        : "Not set up on this server yet — an administrator needs to add a billed Anthropic API key first."}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={Boolean(me?.aiAssistantAvailable) && (me?.settings?.aiAssistantEnabled ?? false)}
+                    disabled={!me?.aiAssistantAvailable}
+                    onCheckedChange={(v) => updateSettings.mutate({ aiAssistantEnabled: v })}
+                  />
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
