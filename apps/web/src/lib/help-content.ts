@@ -73,6 +73,12 @@ export const HELP_CATEGORIES: HelpCategory[] = [
           "Click the Assigned amount on any category row and type the new total for the month. It's a direct edit, not an add — typing 20.00 sets that category's assignment to exactly $20 for the month, however much was there before.",
       },
       {
+        id: "rename-delete-category",
+        question: "How do I rename or delete a category or category group?",
+        answer:
+          "Click the ⋮ menu on any category row (or on a group's header) for Rename and Delete. Deleting hides the category going forward — it isn't gone, just archived — but if it still has money Available, that amount stays counted against Ready to Assign; you just won't be able to see or move it anymore, so it's worth moving any leftover balance out first with \"Move money\" if you want it back in play. A category group can only be deleted once every category inside it has been deleted or moved out. System categories and groups (like a credit card's Payment category) can't be renamed or deleted at all — they're managed automatically.",
+      },
+      {
         id: "move-money",
         question: "What does \"Move money\" do?",
         answer:

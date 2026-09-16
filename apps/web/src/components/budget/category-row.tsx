@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeftRight } from "lucide-react";
+import { ArrowLeftRight, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { AssignCell } from "@/components/budget/assign-cell";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useFormatCents } from "@/hooks/use-locale-format";
 import type { CategoryMonthView } from "@/hooks/use-budget-month";
@@ -18,10 +19,14 @@ export function CategoryRow({
   category,
   onAssign,
   onMoveMoney,
+  onRename,
+  onDelete,
 }: {
   category: CategoryMonthView;
   onAssign: (categoryId: string, cents: number) => Promise<unknown>;
   onMoveMoney: (categoryId: string) => void;
+  onRename: (category: CategoryMonthView) => void;
+  onDelete: (category: CategoryMonthView) => void;
 }) {
   const formatCents = useFormatCents();
   const availableTone =
@@ -50,8 +55,34 @@ export function CategoryRow({
     </button>
   );
 
+  // System categories (e.g. the auto-managed credit card payment category)
+  // reject rename/archive server-side — don't offer a menu that can only
+  // end in an error toast.
+  const categoryMenu = !category.isSystem && (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          data-testid={`category-menu-${category.categoryId}`}
+          className="flex size-7 shrink-0 items-center justify-center rounded text-foreground-muted hover:bg-surface hover:text-foreground"
+          aria-label={`More actions for ${category.name}`}
+        >
+          <MoreVertical className="size-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => onRename(category)}>
+          <Pencil className="size-3.5" /> Rename
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onDelete(category)} className="text-negative focus:text-negative">
+          <Trash2 className="size-3.5" /> Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   return (
-    <div className="border-b border-border px-3 py-2.5 last:border-b-0 hover:bg-surface-muted/60 sm:grid sm:grid-cols-[1fr_7rem_7rem_7rem_2rem] sm:items-center sm:gap-2 sm:py-2">
+    <div className="border-b border-border px-3 py-2.5 last:border-b-0 hover:bg-surface-muted/60 sm:grid sm:grid-cols-[1fr_7rem_7rem_7rem_4.5rem] sm:items-center sm:gap-2 sm:py-2">
       {/* Mobile card layout */}
       <div className="flex items-center justify-between gap-3 sm:hidden">
         <div className="min-w-0 flex-1">
@@ -81,6 +112,7 @@ export function CategoryRow({
             {formatCents(category.availableCents)}
           </span>
           {moveButton}
+          {categoryMenu}
         </div>
       </div>
 
@@ -105,14 +137,17 @@ export function CategoryRow({
       >
         {formatCents(category.availableCents)}
       </div>
-      <div className="hidden sm:flex sm:justify-center">{moveButton}</div>
+      <div className="hidden items-center justify-center gap-0.5 sm:flex">
+        {moveButton}
+        {categoryMenu}
+      </div>
     </div>
   );
 }
 
 export function CategoryRowHeader() {
   return (
-    <div className="hidden gap-2 px-3 py-1.5 text-xs font-medium text-foreground-muted sm:grid sm:grid-cols-[1fr_7rem_7rem_7rem_2rem]">
+    <div className="hidden gap-2 px-3 py-1.5 text-xs font-medium text-foreground-muted sm:grid sm:grid-cols-[1fr_7rem_7rem_7rem_4.5rem]">
       <div>Category</div>
       <div className="flex items-center justify-end gap-1">
         Assigned <InfoTooltip content="How much you've put into this category this month. Click the amount on any row to change it." />
