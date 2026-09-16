@@ -2,18 +2,19 @@
 
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, MoreVertical, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { monthStart, addMonths } from "@montra/domain";
 import { CategoryRow, CategoryRowHeader } from "@/components/budget/category-row";
 import { MoveMoneyDialog } from "@/components/budget/move-money-dialog";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { useAssignMoney, useBudgetMonth, useMoveMoney } from "@/hooks/use-budget-month";
+import { useAssignMoney, useBudgetMonth, useMoveMoney, type CategoryMonthView } from "@/hooks/use-budget-month";
 import { formatMonthLabel, cn } from "@/lib/utils";
 import { useFormatCents } from "@/hooks/use-locale-format";
-import { api } from "@/lib/api-client";
+import { api, ApiRequestError } from "@/lib/api-client";
 import { toast } from "@/lib/toast";
 
 export function BudgetScreen({ budgetId, firstDayOfMonth }: { budgetId: string; firstDayOfMonth: number }) {
@@ -29,6 +30,7 @@ export function BudgetScreen({ budgetId, firstDayOfMonth }: { budgetId: string; 
   const [moveDialogFor, setMoveDialogFor] = useState<string | null | "open">(null);
   const [addGroupOpen, setAddGroupOpen] = useState(false);
   const [addCategoryFor, setAddCategoryFor] = useState<string | null>(null);
+  const [renameTarget, setRenameTarget] = useState<{ kind: "category" | "group"; id: string } | null>(null);
   const [newName, setNewName] = useState("");
 
   const queryClient = useQueryClient();
@@ -70,6 +72,60 @@ export function BudgetScreen({ budgetId, firstDayOfMonth }: { budgetId: string; 
     setAddCategoryFor(null);
     await invalidateGroups();
     toast.success("Category added.");
+  }
+
+  async function submitRename() {
+    if (!renameTarget || !newName.trim()) return;
+    const path =
+      renameTarget.kind === "category"
+        ? `/api/budgets/${budgetId}/categories/${renameTarget.id}`
+        : `/api/budgets/${budgetId}/category-groups/${renameTarget.id}`;
+    try {
+      await api.patch(path, { name: newName.trim() });
+      setRenameTarget(null);
+      setNewName("");
+      await invalidateGroups();
+      toast.success(renameTarget.kind === "category" ? "Category renamed." : "Category group renamed.");
+    } catch {
+      toast.error("Couldn't rename that. Please try again.");
+    }
+  }
+
+  async function deleteCategory(category: CategoryMonthView) {
+    // Archiving hides the category going forward, but the money already
+    // assigned into it permanently stays counted against Ready to Assign
+    // (that's the correct zero-based-budgeting behavior — archiving a
+    // category never retroactively "frees up" cash you already gave it a
+    // job). Any leftover balance just becomes invisible, so warn instead
+    // of silently discarding it.
+    const consequence =
+      category.availableCents !== 0
+        ? `It still has ${formatCents(category.availableCents)} available — that money stays counted in your budget, but you won't be able to view or move it once the category is gone.`
+        : "This can't be undone.";
+    if (!confirm(`Delete "${category.name}"? ${consequence}`)) return;
+    try {
+      await api.patch(`/api/budgets/${budgetId}/categories/${category.categoryId}`, { isArchived: true });
+      await invalidateGroups();
+      toast.success("Category deleted.");
+    } catch {
+      toast.error("Couldn't delete that category. Please try again.");
+    }
+  }
+
+  async function deleteGroup(groupId: string, groupName: string) {
+    const group = data?.groups.find((g) => g.groupId === groupId);
+    if (group && group.categories.length > 0) {
+      toast.error("Delete or move its categories first — a group can't be deleted while it still has categories in it.");
+      return;
+    }
+    if (!confirm(`Delete "${groupName}"? This can't be undone.`)) return;
+    try {
+      await api.patch(`/api/budgets/${budgetId}/category-groups/${groupId}`, { isArchived: true });
+      await invalidateGroups();
+      toast.success("Category group deleted.");
+    } catch (error) {
+      toast.error(error instanceof ApiRequestError ? error.message : "Couldn't delete that group. Please try again.");
+    }
   }
 
   if (isLoading || !data) {
@@ -164,7 +220,11 @@ export function BudgetScreen({ budgetId, firstDayOfMonth }: { budgetId: string; 
           {filteredGroups.map((group) => {
             const isCollapsed = collapsed[group.groupId];
             return (
-              <div key={group.groupId} className="overflow-hidden rounded-lg border border-border bg-surface">
+              <div
+                key={group.groupId}
+                data-testid={`category-group-${group.groupId}`}
+                className="overflow-hidden rounded-lg border border-border bg-surface"
+              >
                 <div className="flex w-full items-center gap-2 bg-surface-muted px-3 py-2 text-sm font-semibold">
                   <button
                     type="button"
@@ -176,13 +236,43 @@ export function BudgetScreen({ budgetId, firstDayOfMonth }: { budgetId: string; 
                     {group.name}
                   </button>
                   {!group.isSystem && (
-                    <button
-                      type="button"
-                      onClick={() => setAddCategoryFor(group.groupId)}
-                      className="flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-xs font-normal text-foreground-muted hover:bg-surface hover:text-foreground"
-                    >
-                      <Plus className="size-3" /> Category
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setAddCategoryFor(group.groupId)}
+                        className="flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-xs font-normal text-foreground-muted hover:bg-surface hover:text-foreground"
+                      >
+                        <Plus className="size-3" /> Category
+                      </button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            data-testid={`group-menu-${group.groupId}`}
+                            className="flex size-6 shrink-0 items-center justify-center rounded text-foreground-muted hover:bg-surface hover:text-foreground"
+                            aria-label={`More actions for ${group.name} group`}
+                          >
+                            <MoreVertical className="size-3.5" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setRenameTarget({ kind: "group", id: group.groupId });
+                              setNewName(group.name);
+                            }}
+                          >
+                            <Pencil className="size-3.5" /> Rename group
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => deleteGroup(group.groupId, group.name)}
+                            className="text-negative focus:text-negative"
+                          >
+                            <Trash2 className="size-3.5" /> Delete group
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </>
                   )}
                 </div>
                 {!isCollapsed && (
@@ -198,6 +288,11 @@ export function BudgetScreen({ budgetId, firstDayOfMonth }: { budgetId: string; 
                           await assignMoney.mutateAsync({ categoryId, amountCents: delta });
                         }}
                         onMoveMoney={(categoryId) => setMoveDialogFor(categoryId)}
+                        onRename={(c) => {
+                          setRenameTarget({ kind: "category", id: c.categoryId });
+                          setNewName(c.name);
+                        }}
+                        onDelete={deleteCategory}
                       />
                     ))}
                   </div>
@@ -247,6 +342,26 @@ export function BudgetScreen({ budgetId, firstDayOfMonth }: { budgetId: string; 
               Cancel
             </Button>
             <Button onClick={() => addCategoryFor && createCategory(addCategoryFor)}>Create</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(renameTarget)} onOpenChange={(open) => !open && setRenameTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{renameTarget?.kind === "group" ? "Rename category group" : "Rename category"}</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            autoFocus
+            onKeyDown={(e) => e.key === "Enter" && submitRename()}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameTarget(null)}>
+              Cancel
+            </Button>
+            <Button onClick={submitRename}>Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

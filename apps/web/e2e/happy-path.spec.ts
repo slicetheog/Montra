@@ -134,6 +134,22 @@ test("full budgeting lifecycle", async ({ page }) => {
   // also coincidentally match a group-total or other summary figure.
   await expect(page.locator(`[data-testid="available-${groceriesId}"]:visible`)).toHaveText("$255.00"); // 300 assigned - 45 spent
 
+  // 10b. A second transaction to the same payee should suggest Groceries
+  // on its own (from the history the transaction above just created),
+  // without picking a category by hand.
+  await page.goto("/accounts");
+  await page.getByRole("link", { name: "Checking" }).click();
+  await page.getByRole("button", { name: "Add transaction" }).click();
+  await page.getByLabel("Payee").fill("Whole Foods");
+  await page.getByLabel(/Amount/).click(); // blurs Payee, triggering the suggestion lookup
+  await expect(page.getByRole("combobox").last()).toContainText(/Groceries/);
+  await page.getByLabel(/Amount/).fill("15");
+  await page.getByRole("button", { name: "Add transaction" }).click();
+  await expect(page.getByText("Transaction added.")).toBeVisible();
+
+  await page.goto("/budget");
+  await expect(page.locator(`[data-testid="available-${groceriesId}"]:visible`)).toHaveText("$240.00"); // 255 - 15
+
   // 11. Move money between two categories
   await page.locator(`[data-testid="move-${groceriesId}"]:visible`).click();
   const moveDialog = page.getByRole("dialog", { name: "Move money" });
@@ -143,6 +159,59 @@ test("full budgeting lifecycle", async ({ page }) => {
   await moveDialog.getByLabel("Amount").fill("10");
   await moveDialog.getByRole("button", { name: "Move money" }).click();
   await expect(page.getByText("Money moved.")).toBeVisible();
+
+  // 11b. Category & group management: create a throwaway group +
+  // category via the UI, rename it, and delete it — then confirm a group
+  // still holding a category refuses to delete, and succeeds once empty.
+  await page.getByRole("button", { name: "Add category group" }).click();
+  await page.getByPlaceholder("e.g. Housing").fill("Temp Group");
+  await page.getByRole("dialog", { name: "New category group" }).getByRole("button", { name: "Create" }).click();
+  await expect(page.getByText("Category group added.")).toBeVisible();
+
+  const groupsAfterCreate = await (await page.request.get(`/api/budgets/${budgetId}/categories`)).json();
+  const tempGroupId = groupsAfterCreate.find((g: { name: string }) => g.name === "Temp Group").id;
+  const tempGroupRow = page.locator(`[data-testid="category-group-${tempGroupId}"]`);
+
+  await tempGroupRow.getByRole("button", { name: "Category" }).click();
+  await page.getByPlaceholder("e.g. Groceries").fill("Temp Category");
+  await page.getByRole("dialog", { name: "New category" }).getByRole("button", { name: "Create" }).click();
+  await expect(page.getByText("Category added.")).toBeVisible();
+
+  const categoriesAfterCreate = await (await page.request.get(`/api/budgets/${budgetId}/categories`)).json();
+  const tempCategoryId = categoriesAfterCreate
+    .flatMap((g: { categories: { id: string; name: string }[] }) => g.categories)
+    .find((c: { name: string }) => c.name === "Temp Category").id;
+
+  // A group that still has a category in it should refuse to delete.
+  await page.locator(`[data-testid="group-menu-${tempGroupId}"]`).click();
+  await page.getByRole("menuitem", { name: "Delete group" }).click();
+  await expect(page.getByText(/can't be deleted while it still has categories/)).toBeVisible();
+
+  // Rename the category.
+  await page.locator(`[data-testid="category-menu-${tempCategoryId}"]:visible`).click();
+  await page.getByRole("menuitem", { name: "Rename" }).click();
+  const renameCategoryDialog = page.getByRole("dialog", { name: "Rename category" });
+  await renameCategoryDialog.getByRole("textbox").fill("Temp Category Renamed");
+  await renameCategoryDialog.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Category renamed.")).toBeVisible();
+  // The category name link renders once per responsive layout (mobile +
+  // desktop), same duplication as assign/available/move above — scope by
+  // the category's own id via its href instead of matching by text.
+  const tempCategoryLink = page.locator(`a[href="/accounts?categoryId=${tempCategoryId}"]:visible`);
+  await expect(tempCategoryLink).toHaveText("Temp Category Renamed");
+
+  // Delete the category, then the now-empty group.
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.locator(`[data-testid="category-menu-${tempCategoryId}"]:visible`).click();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+  await expect(page.getByText("Category deleted.")).toBeVisible();
+  await expect(page.locator(`a[href="/accounts?categoryId=${tempCategoryId}"]`)).not.toBeVisible();
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.locator(`[data-testid="group-menu-${tempGroupId}"]`).click();
+  await page.getByRole("menuitem", { name: "Delete group" }).click();
+  await expect(page.getByText("Category group deleted.")).toBeVisible();
+  await expect(page.getByText("Temp Group")).not.toBeVisible();
 
   // 12. Create a savings goal
   await page.goto("/goals");
@@ -249,8 +318,11 @@ test("full budgeting lifecycle", async ({ page }) => {
   // The transaction list renders both a mobile-card and a desktop-table
   // layout for each row (only one visible at a time via CSS) — filter to
   // the visible instance to avoid a strict-mode "resolved to 2 elements".
+  // Whole Foods is now two separate transactions (step 10b's auto-
+  // categorized one too) so this checks the first visible match rather
+  // than requiring exactly one.
   await expect(page.getByText("Gas Station").and(page.locator(":visible"))).toBeVisible();
-  await expect(page.getByText("Whole Foods").and(page.locator(":visible"))).toBeVisible();
+  await expect(page.getByText("Whole Foods").and(page.locator(":visible")).first()).toBeVisible();
   await expect(page.getByText("Employer").and(page.locator(":visible"))).toBeVisible();
 
   // 18. A custom "First day of month" (Settings -> Preferences) actually

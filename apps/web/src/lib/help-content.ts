@@ -73,6 +73,12 @@ export const HELP_CATEGORIES: HelpCategory[] = [
           "Click the Assigned amount on any category row and type the new total for the month. It's a direct edit, not an add — typing 20.00 sets that category's assignment to exactly $20 for the month, however much was there before.",
       },
       {
+        id: "rename-delete-category",
+        question: "How do I rename or delete a category or category group?",
+        answer:
+          "Click the ⋮ menu on any category row (or on a group's header) for Rename and Delete. Deleting hides the category going forward — it isn't gone, just archived — but if it still has money Available, that amount stays counted against Ready to Assign; you just won't be able to see or move it anymore, so it's worth moving any leftover balance out first with \"Move money\" if you want it back in play. A category group can only be deleted once every category inside it has been deleted or moved out. System categories and groups (like a credit card's Payment category) can't be renamed or deleted at all — they're managed automatically.",
+      },
+      {
         id: "move-money",
         question: "What does \"Move money\" do?",
         answer:
@@ -108,6 +114,12 @@ export const HELP_CATEGORIES: HelpCategory[] = [
         question: "How do split transactions work?",
         answer:
           "Every transaction has at least one split (a category + amount); most have exactly one, matching the transaction's own total. A split transaction just has more than one — say a $120 Target run split $80 to Groceries and $40 to Household. The split amounts always have to add up to the transaction total.",
+      },
+      {
+        id: "auto-categorize-payee",
+        question: "Why did a category fill in by itself when I typed a payee?",
+        answer:
+          "When the payee you type or pick matches one you've used before, Montra suggests a category for it — either that payee's own default category (set from the Payees list) or, if it doesn't have one, whichever category you've most often used with it. It only fills in a category that's still blank, so it never overwrites one you already picked, and only on a new transaction (editing an existing one leaves its real categories alone).",
       },
       {
         id: "transfers",
