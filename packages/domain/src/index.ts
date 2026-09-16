@@ -10,3 +10,4 @@ export * from "./recurring-detection";
 export * from "./cash-flow-forecast";
 export * from "./spending-pace";
 export * from "./auto-assign";
+export * from "./investments";

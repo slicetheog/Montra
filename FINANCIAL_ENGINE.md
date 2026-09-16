@@ -165,6 +165,14 @@ wrong here, which is exactly the point of pushing sign correctness down
 into how transactions are entered rather than handling it ad hoc at
 reporting time.
 
+Investment `Holding`s (packages/domain/src/investments.ts) are a
+breakdown layered on top of this, never a second source of truth: an
+Investment account's balance is still whatever its transactions sum to,
+and a holding's market value is computed separately from a
+manually-entered price (there's no live market-data feed). The two can
+drift — a "sync value" action closes the gap with one adjustment
+transaction, the same pattern reconciliation already uses.
+
 ## Goals, recurrence, reconciliation, and import matching
 
 The same "pure function, fully unit tested, no I/O" discipline applies

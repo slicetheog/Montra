@@ -17,12 +17,12 @@ export default defineConfig({
   // with no bearing on production (the app was also verified against
   // `next start`, which has no such cost — see DEPLOYMENT.md). happy-path
   // has grown to cover most of the app's features in one continuous
-  // lifecycle (now ~30 distinct routes/steps) and was timing out right at
-  // the tail even on a warm run (46-50s observed, against the previous
-  // 60s ceiling) — bumped with real margin rather than shaving it again
-  // every time a feature adds a few more steps. A little slack here
-  // avoids failing on that, not on a real bug.
-  timeout: 90_000,
+  // lifecycle (now 30+ distinct routes/steps) and was observed hitting the
+  // previous 90s ceiling on an otherwise-passing run — bumped with real
+  // margin rather than shaving it again every time a feature adds a few
+  // more steps. A little slack here avoids failing on that, not on a real
+  // bug.
+  timeout: 120_000,
   expect: { timeout: 10_000 },
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3011",

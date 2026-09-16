@@ -2,17 +2,29 @@ import "server-only";
 import { prisma } from "@montra/db";
 import { cents, computeNetWorth, monthEndExclusive, monthRange, monthStart } from "@montra/domain";
 import { requireBudgetOwnership } from "@/server/services/budgets";
+import { getPortfolioSummary } from "@/server/services/holdings";
 import { ASSET_ACCOUNT_TYPES } from "@/lib/constants";
 
+/**
+ * Net worth itself always comes from the transaction ledger (see
+ * FINANCIAL_ENGINE.md's "Net worth" section) — `portfolio` is an
+ * informational breakdown of investment holdings alongside it, not a
+ * second source of truth. It can differ from an Investment account's
+ * ledger balance until the user syncs the two (see
+ * services/holdings.ts's syncAccountValueToHoldings).
+ */
 export async function getNetWorthNow(userId: string, budgetId: string) {
   await requireBudgetOwnership(budgetId, userId);
   const accounts = await prisma.account.findMany({ where: { budgetId }, select: { id: true, name: true, type: true } });
 
-  const sums = await prisma.transaction.groupBy({
-    by: ["accountId"],
-    where: { accountId: { in: accounts.map((a) => a.id) } },
-    _sum: { amountCents: true },
-  });
+  const [sums, portfolio] = await Promise.all([
+    prisma.transaction.groupBy({
+      by: ["accountId"],
+      where: { accountId: { in: accounts.map((a) => a.id) } },
+      _sum: { amountCents: true },
+    }),
+    getPortfolioSummary(userId, budgetId),
+  ]);
   const balanceByAccount = new Map(sums.map((s) => [s.accountId, s._sum.amountCents ?? 0]));
 
   const assets = accounts
@@ -26,7 +38,7 @@ export async function getNetWorthNow(userId: string, budgetId: string) {
   const totalAssetsCents = assets.reduce((sum, a) => sum + a.balanceCents, 0);
   const totalLiabilitiesCents = Math.abs(liabilities.reduce((sum, a) => sum + a.balanceCents, 0));
 
-  return { netWorthCents, totalAssetsCents, totalLiabilitiesCents, assets, liabilities };
+  return { netWorthCents, totalAssetsCents, totalLiabilitiesCents, assets, liabilities, portfolio };
 }
 
 /** Reconstructs net worth at the end of each of the last `months` months from the transaction ledger. */

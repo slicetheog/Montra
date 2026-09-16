@@ -270,6 +270,12 @@ export const HELP_CATEGORIES: HelpCategory[] = [
         answer:
           "Net worth = total assets − total liabilities, using every account's real balance (asset accounts like checking/savings/investments minus liability accounts like credit cards/loans), on- and off-budget accounts alike. The trend chart reconstructs this at the end of each of the last 12 months directly from your transaction history, so it reflects what your accounts actually looked like at each point in time.",
       },
+      {
+        id: "investment-holdings",
+        question: "How do I track what's inside an Investment account?",
+        answer:
+          "Open an Investment account and add holdings — a name (or ticker), a quantity, and a price per share you enter yourself. Montra has no live market-data feed, so keep the price current by editing the holding whenever you check it; each update is saved so you can see its performance over time. Holdings are a breakdown of the account, not a second balance — the account's real balance still comes from its transactions, same as any other account. If the two drift apart (the market moved since your last transaction), use \"Sync value\" on the account page to log a single adjustment transaction that brings the ledger in line with what your holdings say it's worth.",
+      },
     ],
   },
   {

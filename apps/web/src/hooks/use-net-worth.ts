@@ -3,12 +3,20 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 
+export interface PortfolioSummary {
+  totalMarketValueCents: number;
+  totalCostBasisCents: number | null;
+  totalGainLossCents: number | null;
+  totalGainLossPercent: number | null;
+}
+
 export interface NetWorthNow {
   netWorthCents: number;
   totalAssetsCents: number;
   totalLiabilitiesCents: number;
   assets: { id: string; name: string; type: string; balanceCents: number }[];
   liabilities: { id: string; name: string; type: string; balanceCents: number }[];
+  portfolio: PortfolioSummary;
 }
 
 export function useNetWorthNow(budgetId: string | null) {

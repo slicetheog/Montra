@@ -339,6 +339,45 @@ test("full budgeting lifecycle", async ({ page }) => {
   await reconcileDialog.getByRole("button", { name: "Reconcile" }).click();
   await expect(page.getByText("Account reconciled.")).toBeVisible();
 
+  // 14e. Investment holdings: add a holding to a fresh Investment account,
+  // confirm its market value and gain/loss render, then sync the account's
+  // ledger balance to match — and check Net Worth picks up the aggregate.
+  await page.goto("/accounts");
+  await page.getByRole("button", { name: "Add account" }).click();
+  const addAccountDialog = page.getByRole("dialog", { name: "Add account" });
+  await addAccountDialog.getByLabel("Name").fill("Brokerage");
+  await addAccountDialog.getByRole("combobox").click(); // Type
+  await page.getByRole("option", { name: "Investment" }).click();
+  await addAccountDialog.getByRole("button", { name: "Add account" }).click();
+  await expect(page.getByText("Brokerage added.")).toBeVisible();
+
+  const accountsAfterCreate = await (await page.request.get(`/api/budgets/${budgetId}/accounts`)).json();
+  const brokerageId = accountsAfterCreate.find((a: { name: string }) => a.name === "Brokerage").id;
+
+  await page.goto(`/accounts/${brokerageId}`);
+  await page.getByRole("button", { name: "Add holding" }).click();
+  const holdingDialog = page.getByRole("dialog", { name: "Add holding" });
+  await holdingDialog.getByLabel("Name").fill("Vanguard S&P 500 ETF");
+  await holdingDialog.getByLabel("Ticker symbol (optional)").fill("VOO");
+  await holdingDialog.getByLabel("Quantity").fill("10");
+  await holdingDialog.getByLabel("Price per share").fill("500");
+  await holdingDialog.getByLabel("Total cost basis (optional)").fill("4500");
+  await holdingDialog.getByRole("button", { name: "Add" }).click();
+  await expect(page.getByText("Holding added.")).toBeVisible();
+
+  // 10 shares @ $500 = $5,000 market value; cost basis $4,500 -> +$500 (+11.1%).
+  await expect(page.getByText("Vanguard S&P 500 ETF")).toBeVisible();
+  await expect(page.getByText("$5,000.00", { exact: true })).toBeVisible();
+  await expect(page.getByText(/\$500\.00 \(\+11\.1%\)/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Sync value" }).click();
+  await expect(page.getByText("Account balance updated to match your holdings.")).toBeVisible();
+  const brokerageAfterSync = await (await page.request.get(`/api/budgets/${budgetId}/accounts/${brokerageId}`)).json();
+  expect(brokerageAfterSync.balances.currentCents).toBe(500000);
+
+  await page.goto("/net-worth");
+  await expect(page.getByRole("heading", { name: "Investments" })).toBeVisible();
+
   // 14b. Help center: browse a topic, then search across all of them
   await page.goto("/help");
   await expect(page.getByRole("heading", { name: "Help Center" })).toBeVisible();
