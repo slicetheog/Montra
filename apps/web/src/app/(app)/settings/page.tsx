@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { RemoveAdsCard } from "@/components/settings/remove-ads-card";
+import { SharingDialog } from "@/components/settings/sharing-dialog";
 import { ImportDialog } from "@/components/imports/import-dialog";
 import { AdBanner } from "@/components/ads/ad-banner";
 import { api, ApiRequestError } from "@/lib/api-client";
@@ -328,12 +329,13 @@ function BudgetsSection() {
   const archiveBudget = useArchiveBudget();
   const deleteBudget = useDeleteBudget();
   const [newName, setNewName] = useState("");
+  const [sharingBudget, setSharingBudget] = useState<{ id: string; name: string; isOwner: boolean } | null>(null);
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Your budgets</CardTitle>
-        <CardDescription>Create separate budgets for different purposes — personal, business, a trip.</CardDescription>
+        <CardDescription>Create separate budgets for different purposes — personal, business, a trip — or share one with a partner.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <ul className="flex flex-col gap-2">
@@ -348,19 +350,29 @@ function BudgetsSection() {
                 <span className="shrink-0 rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-foreground-muted">
                   {b.currency}
                 </span>
+                {!b.isOwner && (
+                  <span className="shrink-0 rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-foreground-muted">Shared with you</span>
+                )}
               </div>
               <div className="flex gap-1">
-                <Button variant="ghost" size="icon" onClick={() => archiveBudget.mutate({ id: b.id, isArchived: true })} aria-label="Archive budget">
-                  <Archive className="size-4" />
+                <Button variant="ghost" size="sm" onClick={() => setSharingBudget({ id: b.id, name: b.name, isOwner: b.isOwner })}>
+                  Share
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => confirm(`Delete "${b.name}" and everything in it? This can't be undone.`) && deleteBudget.mutate(b.id)}
-                  aria-label="Delete budget"
-                >
-                  <Trash2 className="size-4 text-negative" />
-                </Button>
+                {b.isOwner && (
+                  <>
+                    <Button variant="ghost" size="icon" onClick={() => archiveBudget.mutate({ id: b.id, isArchived: true })} aria-label="Archive budget">
+                      <Archive className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => confirm(`Delete "${b.name}" and everything in it? This can't be undone.`) && deleteBudget.mutate(b.id)}
+                      aria-label="Delete budget"
+                    >
+                      <Trash2 className="size-4 text-negative" />
+                    </Button>
+                  </>
+                )}
               </div>
             </li>
           ))}
@@ -379,6 +391,16 @@ function BudgetsSection() {
           </Button>
         </div>
       </CardContent>
+
+      {sharingBudget && (
+        <SharingDialog
+          open={Boolean(sharingBudget)}
+          onOpenChange={(open) => !open && setSharingBudget(null)}
+          budgetId={sharingBudget.id}
+          budgetName={sharingBudget.name}
+          isOwner={sharingBudget.isOwner}
+        />
+      )}
     </Card>
   );
 }

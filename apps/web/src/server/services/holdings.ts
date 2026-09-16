@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@montra/db";
 import { cents, computeHoldingGainLoss, summarizePortfolio } from "@montra/domain";
 import { ValidationError } from "@/server/api-helpers";
-import { requireBudgetOwnership } from "@/server/services/budgets";
+import { requireBudgetAccess } from "@/server/services/budgets";
 import { requireAccountInBudget } from "@/server/services/accounts";
 import { findOrCreatePayee } from "@/server/services/payees";
 import { logAudit } from "@/server/services/audit";
@@ -35,7 +35,7 @@ function withGainLoss<T extends { quantity: number; currentPriceCents: number; c
 }
 
 export async function listHoldings(userId: string, budgetId: string, accountId: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   await requireInvestmentAccount(accountId, budgetId);
   const holdings = await prisma.holding.findMany({
     where: { accountId },
@@ -46,7 +46,7 @@ export async function listHoldings(userId: string, budgetId: string, accountId: 
 }
 
 export async function createHolding(userId: string, budgetId: string, accountId: string, input: HoldingInput) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   await requireInvestmentAccount(accountId, budgetId);
 
   const holding = await prisma.$transaction(async (tx) => {
@@ -91,7 +91,7 @@ export async function updateHolding(
   holdingId: string,
   patch: UpdateHoldingInput,
 ) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   await requireInvestmentAccount(accountId, budgetId);
   const existing = await prisma.holding.findUnique({ where: { id: holdingId } });
   if (!existing || existing.accountId !== accountId) {
@@ -115,7 +115,7 @@ export async function updateHolding(
 }
 
 export async function deleteHolding(userId: string, budgetId: string, accountId: string, holdingId: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   await requireInvestmentAccount(accountId, budgetId);
   const existing = await prisma.holding.findUnique({ where: { id: holdingId } });
   if (!existing || existing.accountId !== accountId) {
@@ -127,7 +127,7 @@ export async function deleteHolding(userId: string, budgetId: string, accountId:
 
 /** Aggregate holdings across every Investment account in the budget, for the Net Worth page. */
 export async function getPortfolioSummary(userId: string, budgetId: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const holdings = await prisma.holding.findMany({
     where: { account: { budgetId, type: "INVESTMENT" } },
     select: { quantity: true, currentPriceCents: true, costBasisCents: true },
@@ -150,7 +150,7 @@ export async function getPortfolioSummary(userId: string, budgetId: string) {
  * separately.
  */
 export async function syncAccountValueToHoldings(userId: string, budgetId: string, accountId: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   await requireInvestmentAccount(accountId, budgetId);
 
   const [holdings, ledgerAgg] = await Promise.all([

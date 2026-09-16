@@ -15,7 +15,7 @@ import {
   ZERO,
 } from "@montra/domain";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/server/api-helpers";
-import { requireBudgetOwnership } from "@/server/services/budgets";
+import { requireBudgetAccess } from "@/server/services/budgets";
 import { getOrCreateBudgetMonth, getOrCreateCategoryMonth } from "@/server/services/budget-months";
 import { resolveFirstDayOfMonth } from "@/server/services/settings";
 import { logAudit } from "@/server/services/audit";
@@ -94,6 +94,8 @@ export interface CategoryMonthView {
   assignedCents: number;
   activityCents: number;
   availableCents: number;
+  /** True when this category is private to the viewer (only ever true for one they own — a shared budget's other members never even receive a private category they don't own, see the `where` filter above this view is built from). */
+  isPrivate: boolean;
 }
 
 export interface CategoryGroupView {
@@ -105,7 +107,7 @@ export interface CategoryGroupView {
 }
 
 export async function getMonthView(userId: string, budgetId: string, month: Date) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const firstDayOfMonth = await resolveFirstDayOfMonth(userId);
   const normalized = monthStart(month, firstDayOfMonth);
 
@@ -113,8 +115,12 @@ export async function getMonthView(userId: string, budgetId: string, month: Date
     where: { budgetId, isArchived: false },
     orderBy: { sortOrder: "asc" },
     include: {
+      // A shared budget's members never see a category that's private to
+      // someone else (see the schema comment on Category.isPrivate) — a
+      // non-private category, or a private one this viewer owns, either
+      // way.
       categories: {
-        where: { isArchived: false },
+        where: { isArchived: false, OR: [{ isPrivate: false }, { ownerUserId: userId }] },
         orderBy: { sortOrder: "asc" },
         include: { goal: { select: { id: true } } },
       },
@@ -155,6 +161,7 @@ export async function getMonthView(userId: string, budgetId: string, month: Date
         assignedCents: assignedThisMonth,
         activityCents: activityThisMonth,
         availableCents: available,
+        isPrivate: category.isPrivate,
       };
       categoryViews.push(view);
       flatCategories.push(view);
@@ -191,9 +198,21 @@ export async function getMonthView(userId: string, budgetId: string, month: Date
 // Assign / move money
 // ---------------------------------------------------------------------------
 
-export async function requireCategoryInBudget(categoryId: string, budgetId: string) {
+/**
+ * `userId` gates a private category exactly like listCategories/
+ * getMonthView's read filter — this is what stops another member from
+ * reaching one they can't even see by guessing/reusing its id (assigning
+ * to it, splitting a transaction into it, linking a recurring bill to
+ * it, renaming/archiving it). Treated as NotFoundError, not Forbidden,
+ * for the same reason it's invisible in listings: it doesn't exist as
+ * far as this viewer is concerned.
+ */
+export async function requireCategoryInBudget(categoryId: string, budgetId: string, userId?: string) {
   const category = await prisma.category.findUnique({ where: { id: categoryId } });
   if (!category || category.budgetId !== budgetId) throw new NotFoundError("That category couldn't be found.");
+  if (category.isPrivate && userId !== undefined && category.ownerUserId !== userId) {
+    throw new NotFoundError("That category couldn't be found.");
+  }
   return category;
 }
 
@@ -205,8 +224,8 @@ export async function assignMoney(
   amountCents: number,
   memo?: string,
 ) {
-  await requireBudgetOwnership(budgetId, userId);
-  await requireCategoryInBudget(categoryId, budgetId);
+  await requireBudgetAccess(budgetId, userId);
+  await requireCategoryInBudget(categoryId, budgetId, userId);
   const firstDayOfMonth = await resolveFirstDayOfMonth(userId);
   const normalized = monthStart(month, firstDayOfMonth);
 
@@ -237,9 +256,9 @@ export async function moveMoney(
   if (amountCents <= 0) throw new ConflictError("Enter an amount greater than $0 to move.");
   if (fromCategoryId === toCategoryId) throw new ConflictError("Choose two different categories.");
 
-  await requireBudgetOwnership(budgetId, userId);
-  await requireCategoryInBudget(fromCategoryId, budgetId);
-  await requireCategoryInBudget(toCategoryId, budgetId);
+  await requireBudgetAccess(budgetId, userId);
+  await requireCategoryInBudget(fromCategoryId, budgetId, userId);
+  await requireCategoryInBudget(toCategoryId, budgetId, userId);
   const firstDayOfMonth = await resolveFirstDayOfMonth(userId);
   const normalized = monthStart(month, firstDayOfMonth);
 
@@ -297,42 +316,46 @@ export async function moveMoney(
 
 /** Flat groups+categories list, independent of any month — used to populate pickers in forms. */
 export async function listCategories(userId: string, budgetId: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   return prisma.categoryGroup.findMany({
     where: { budgetId, isArchived: false },
     orderBy: { sortOrder: "asc" },
     include: {
+      // See getMonthView's identical filter — a private category never
+      // appears in another member's picker either.
       categories: {
-        where: { isArchived: false },
+        where: { isArchived: false, OR: [{ isPrivate: false }, { ownerUserId: userId }] },
         orderBy: { sortOrder: "asc" },
-        select: { id: true, name: true, isSystem: true, linkedAccountId: true },
+        select: { id: true, name: true, isSystem: true, linkedAccountId: true, isPrivate: true },
       },
     },
   });
 }
 
 export async function createCategoryGroup(userId: string, budgetId: string, name: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const count = await prisma.categoryGroup.count({ where: { budgetId } });
   const group = await prisma.categoryGroup.create({ data: { budgetId, name, sortOrder: count } });
   await logAudit({ userId, action: "category_group.created", entityType: "CategoryGroup", entityId: group.id });
   return group;
 }
 
-export async function createCategory(userId: string, budgetId: string, groupId: string, name: string) {
-  await requireBudgetOwnership(budgetId, userId);
+export async function createCategory(userId: string, budgetId: string, groupId: string, name: string, isPrivate = false) {
+  await requireBudgetAccess(budgetId, userId);
   const group = await prisma.categoryGroup.findUnique({ where: { id: groupId } });
   if (!group || group.budgetId !== budgetId) throw new NotFoundError("That category group couldn't be found.");
 
   const count = await prisma.category.count({ where: { groupId } });
-  const category = await prisma.category.create({ data: { budgetId, groupId, name, sortOrder: count } });
+  const category = await prisma.category.create({
+    data: { budgetId, groupId, name, sortOrder: count, isPrivate, ownerUserId: isPrivate ? userId : null },
+  });
   await logAudit({ userId, action: "category.created", entityType: "Category", entityId: category.id });
   return category;
 }
 
 export async function renameCategory(userId: string, budgetId: string, categoryId: string, name: string) {
-  await requireBudgetOwnership(budgetId, userId);
-  const category = await requireCategoryInBudget(categoryId, budgetId);
+  await requireBudgetAccess(budgetId, userId);
+  const category = await requireCategoryInBudget(categoryId, budgetId, userId);
   if (category.isSystem) throw new ForbiddenError("This category is managed automatically and can't be renamed.");
   const updated = await prisma.category.update({ where: { id: categoryId }, data: { name } });
   await logAudit({ userId, action: "category.renamed", entityType: "Category", entityId: categoryId });
@@ -340,8 +363,8 @@ export async function renameCategory(userId: string, budgetId: string, categoryI
 }
 
 export async function archiveCategory(userId: string, budgetId: string, categoryId: string) {
-  await requireBudgetOwnership(budgetId, userId);
-  const category = await requireCategoryInBudget(categoryId, budgetId);
+  await requireBudgetAccess(budgetId, userId);
+  const category = await requireCategoryInBudget(categoryId, budgetId, userId);
   if (category.isSystem) throw new ForbiddenError("This category is managed automatically and can't be deleted.");
   const updated = await prisma.category.update({ where: { id: categoryId }, data: { isArchived: true } });
   await logAudit({ userId, action: "category.archived", entityType: "Category", entityId: categoryId });
@@ -353,11 +376,13 @@ export async function reorderCategories(
   budgetId: string,
   updates: { categoryId: string; groupId: string; sortOrder: number }[],
 ) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   // Every categoryId AND target groupId must belong to this budget —
   // `where: { id }` alone would happily reparent/reorder another budget's
   // category if a caller passed a foreign id.
-  await Promise.all(updates.map((u) => Promise.all([requireCategoryInBudget(u.categoryId, budgetId), requireGroupInBudget(u.groupId, budgetId)])));
+  await Promise.all(
+    updates.map((u) => Promise.all([requireCategoryInBudget(u.categoryId, budgetId, userId), requireGroupInBudget(u.groupId, budgetId)])),
+  );
   await prisma.$transaction(
     updates.map((u) =>
       prisma.category.updateMany({
@@ -369,7 +394,7 @@ export async function reorderCategories(
 }
 
 export async function reorderCategoryGroups(userId: string, budgetId: string, updates: { groupId: string; sortOrder: number }[]) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   await Promise.all(updates.map((u) => requireGroupInBudget(u.groupId, budgetId)));
   await prisma.$transaction(
     updates.map((u) => prisma.categoryGroup.updateMany({ where: { id: u.groupId, budgetId }, data: { sortOrder: u.sortOrder } })),

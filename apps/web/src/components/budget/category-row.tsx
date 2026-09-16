@@ -91,6 +91,9 @@ export function CategoryRow({
             {category.goalId && (
               <span className="shrink-0 rounded-full bg-accent-tint px-1.5 py-0.5 text-[10px] font-medium text-accent">Goal</span>
             )}
+            {category.isPrivate && (
+              <span className="shrink-0 rounded-full bg-surface-muted px-1.5 py-0.5 text-[10px] font-medium text-foreground-muted">Private</span>
+            )}
           </div>
           <div className="mt-1 flex items-center gap-3 text-xs text-foreground-muted">
             <span className="flex items-center gap-1">
@@ -121,6 +124,9 @@ export function CategoryRow({
         {nameLink}
         {category.goalId && (
           <span className="shrink-0 rounded-full bg-accent-tint px-1.5 py-0.5 text-[10px] font-medium text-accent">Goal</span>
+        )}
+        {category.isPrivate && (
+          <span className="shrink-0 rounded-full bg-surface-muted px-1.5 py-0.5 text-[10px] font-medium text-foreground-muted">Private</span>
         )}
       </div>
       <div className="hidden text-right text-sm tabular-nums sm:block">

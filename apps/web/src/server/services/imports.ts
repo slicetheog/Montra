@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@montra/db";
 import { cents, findLikelyDuplicate, normalizePayeeText } from "@montra/domain";
 import { ConflictError, NotFoundError, ValidationError } from "@/server/api-helpers";
-import { requireBudgetOwnership } from "@/server/services/budgets";
+import { requireBudgetAccess } from "@/server/services/budgets";
 import { requireAccountInBudget } from "@/server/services/accounts";
 import { createTransaction } from "@/server/services/transactions";
 import { logAudit } from "@/server/services/audit";
@@ -22,7 +22,7 @@ export interface CsvRow {
  * preview before committing."
  */
 export async function stageImport(userId: string, budgetId: string, accountId: string, filename: string, rows: CsvRow[]) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   await requireAccountInBudget(accountId, budgetId);
   if (rows.length === 0) throw new ValidationError("That file didn't have any rows to import.");
   if (rows.length > 5000) throw new ValidationError("That file has too many rows (max 5,000 per import).");
@@ -69,7 +69,7 @@ export async function stageImport(userId: string, budgetId: string, accountId: s
 }
 
 export async function getImportPreview(userId: string, budgetId: string, importId: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const importRecord = await prisma.import.findUnique({
     where: { id: importId },
     include: {
@@ -102,7 +102,7 @@ export async function updateImportRow(
   rowId: string,
   patch: { willImport?: boolean; matchedCategoryId?: string | null },
 ) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const importRecord = await prisma.import.findUnique({ where: { id: importId } });
   if (!importRecord || importRecord.budgetId !== budgetId) throw new NotFoundError("That import couldn't be found.");
   if (importRecord.status !== "PENDING") throw new ConflictError("This import has already been committed.");
@@ -122,7 +122,7 @@ export async function updateImportRow(
 }
 
 export async function commitImport(userId: string, budgetId: string, importId: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const importRecord = await prisma.import.findUnique({ where: { id: importId }, include: { rows: true } });
   if (!importRecord || importRecord.budgetId !== budgetId) throw new NotFoundError("That import couldn't be found.");
   if (importRecord.status !== "PENDING") throw new ConflictError("This import has already been committed.");
@@ -152,7 +152,7 @@ export async function commitImport(userId: string, budgetId: string, importId: s
 }
 
 export async function cancelImport(userId: string, budgetId: string, importId: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const importRecord = await prisma.import.findUnique({ where: { id: importId } });
   if (!importRecord || importRecord.budgetId !== budgetId) throw new NotFoundError("That import couldn't be found.");
   if (importRecord.status !== "PENDING") throw new ConflictError("This import has already been committed.");

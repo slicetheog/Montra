@@ -67,14 +67,27 @@ request body too**. This is the pattern:
 
 ```ts
 // 1. The top-level resource named in the URL:
-const budget = await requireBudgetOwnership(budgetId, session.userId);
+const budget = await requireBudgetAccess(budgetId, session.userId);
 
 // 2. Every OTHER id the request body references must independently be
 //    verified to belong to that SAME budget — never assumed just
 //    because the caller is authenticated and owns *a* budget:
-await requireCategoryInBudget(input.categoryId, budgetId);
+await requireCategoryInBudget(input.categoryId, budgetId, session.userId);
 await requireAccountInBudget(input.accountId, budgetId);
 ```
+
+`requireBudgetAccess` grants the owner AND any ACCEPTED `BudgetMember`
+(shared budgets, see `services/budget-members.ts`) the same read/write
+reach — the one narrower gate, `requireBudgetOwner`, is used only for
+deleting the budget and managing who's on it. Membership is invite-by-
+email with an opaque, hashed token (same "only the hash is ever stored"
+principle as sessions below) that can only be *accepted* by an account
+whose own email matches the invited address — there's no way to redeem
+someone else's invite even if the link leaks. A category can additionally
+be marked private to the member who created it; `requireCategoryInBudget`
+treats it as not found (not forbidden) for every other member, the same
+IDOR-safe treatment described below, so its existence isn't even
+confirmed to a collaborator who isn't its owner.
 
 This two-level check is the actual fix for IDOR (insecure direct object
 reference): it's not enough to confirm the user owns the budget in the
@@ -106,12 +119,27 @@ access (403), cross-user category injection into a transaction split
 (404 — the referenced category simply doesn't exist *in that user's
 budget*, so it's treated as not found rather than forbidden, which also
 avoids confirming to an attacker that the ID is valid but belongs to
-someone else), and cross-user account repointing (404).
+someone else), and cross-user account repointing (404). The same file's
+"shared budgets" tests cover the membership model specifically: a
+collaborator gets real access after accepting an invite, cannot delete
+or archive the budget, loses access the moment they're removed, and
+cannot accept an invite addressed to a different email — plus a private
+category staying invisible to a collaborator by direct id, not just in
+listings.
 
-`requireBudgetOwnership` and the per-entity `require*InBudget` helpers
-live in `src/server/services/*` and are the one place this check is
-implemented — every route handler calls into a service function that
-performs it, rather than routes re-implementing the check ad hoc.
+`requireBudgetAccess`/`requireBudgetOwner` and the per-entity
+`require*InBudget` helpers live in `src/server/services/*` and are the
+one place this check is implemented — every route handler calls into a
+service function that performs it, rather than routes re-implementing
+the check ad hoc.
+
+A private category's *transactions* are intentionally not redacted from
+the shared transaction ledger, CSV export, or the Dashboard's recent-
+activity feed: every member already sees a shared account's real
+payee/amount/date regardless of category (that's the point of a shared
+account), so "private" here scopes to the budgeting/allocation views —
+category lists, pickers, and category-based Reports breakdowns — not a
+claim that a transaction itself is hidden.
 
 ## Input validation
 

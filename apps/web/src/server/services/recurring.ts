@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@montra/db";
 import { cents, computeNextOccurrence, detectRecurringCandidates, type RecurrenceFrequency } from "@montra/domain";
 import { NotFoundError, ValidationError } from "@/server/api-helpers";
-import { requireBudgetOwnership } from "@/server/services/budgets";
+import { requireBudgetAccess } from "@/server/services/budgets";
 import { requireAccountInBudget } from "@/server/services/accounts";
 import { requireCategoryInBudget } from "@/server/services/budget";
 import { createTransaction } from "@/server/services/transactions";
@@ -29,10 +29,10 @@ export interface CreateRecurringInput {
 }
 
 export async function createRecurring(userId: string, budgetId: string, input: CreateRecurringInput) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   await requireAccountInBudget(input.accountId, budgetId);
   if (input.type === "TRANSFER") throw new ValidationError("Recurring transfers aren't supported yet — create the transaction manually each time.");
-  if (input.categoryId) await requireCategoryInBudget(input.categoryId, budgetId);
+  if (input.categoryId) await requireCategoryInBudget(input.categoryId, budgetId, userId);
   let payeeId = input.payeeId;
   if (payeeId) {
     const payee = await prisma.payee.findUnique({ where: { id: payeeId } });
@@ -83,7 +83,7 @@ export async function updateRecurring(
     totalAmountCents: number | null;
   }>,
 ) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const existing = await prisma.recurringTransaction.findUnique({ where: { id } });
   if (!existing || existing.budgetId !== budgetId) throw new NotFoundError("That recurring transaction couldn't be found.");
   const updated = await prisma.recurringTransaction.update({ where: { id }, data: patch });
@@ -92,7 +92,7 @@ export async function updateRecurring(
 }
 
 export async function deleteRecurring(userId: string, budgetId: string, id: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const existing = await prisma.recurringTransaction.findUnique({ where: { id } });
   if (!existing || existing.budgetId !== budgetId) throw new NotFoundError("That recurring transaction couldn't be found.");
   await prisma.recurringTransaction.delete({ where: { id } });
@@ -108,7 +108,7 @@ export async function deleteRecurring(userId: string, budgetId: string, id: stri
  * infrastructure; a real cron/queue is a natural production upgrade.
  */
 export async function materializeDueRecurring(userId: string, budgetId: string, asOf = new Date()) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
 
   const due = await prisma.recurringTransaction.findMany({
     where: { budgetId, isActive: true, autoCreate: true, nextOccurrenceDate: { lte: asOf } },
@@ -154,7 +154,7 @@ export async function materializeDueRecurring(userId: string, budgetId: string, 
  */
 export async function listRecurring(userId: string, budgetId: string) {
   await materializeDueRecurring(userId, budgetId);
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const recurring = await prisma.recurringTransaction.findMany({
     where: { budgetId },
     orderBy: { nextOccurrenceDate: "asc" },
@@ -198,7 +198,7 @@ export async function logRecurringPayment(
   recurringId: string,
   input: { amountCents: number; date: Date; memo?: string },
 ) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const series = await prisma.recurringTransaction.findUnique({ where: { id: recurringId } });
   if (!series || series.budgetId !== budgetId) throw new NotFoundError("That recurring transaction couldn't be found.");
   if (series.totalAmountCents == null) throw new ValidationError("This recurring transaction doesn't track a total amount.");
@@ -226,7 +226,7 @@ export async function logRecurringPayment(
  * by an existing active recurring series for that same payee/account.
  */
 export async function suggestRecurringTransactions(userId: string, budgetId: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const since = new Date();
   since.setUTCMonth(since.getUTCMonth() - 12);
 

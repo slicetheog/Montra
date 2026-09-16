@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@montra/db";
 import { buildBudgetSnapshotText, cents, type BudgetSnapshotInput } from "@montra/domain";
 import { ValidationError } from "@/server/api-helpers";
-import { requireBudgetOwnership } from "@/server/services/budgets";
+import { requireBudgetAccess } from "@/server/services/budgets";
 import { getMonthView } from "@/server/services/budget";
 import { getNetWorthNow } from "@/server/services/net-worth";
 import { listGoals } from "@/server/services/goals";
@@ -27,7 +27,7 @@ async function requireAssistantEnabled(userId: string) {
 }
 
 async function buildSnapshot(userId: string, budgetId: string, month: Date): Promise<BudgetSnapshotInput> {
-  const budget = await requireBudgetOwnership(budgetId, userId);
+  const budget = await requireBudgetAccess(budgetId, userId);
   const [monthView, netWorth, goals, upcomingBills] = await Promise.all([
     getMonthView(userId, budgetId, month),
     getNetWorthNow(userId, budgetId),
@@ -62,7 +62,7 @@ async function buildSnapshot(userId: string, budgetId: string, month: Date): Pro
 const MAX_QUESTION_LENGTH = 500;
 
 export async function askAssistant(userId: string, budgetId: string, question: string): Promise<{ answer: string }> {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   await requireAssistantEnabled(userId);
   const trimmed = question.trim();
   if (!trimmed) throw new ValidationError("Enter a question first.");
@@ -80,7 +80,7 @@ export async function askAssistant(userId: string, budgetId: string, question: s
 }
 
 export async function getMonthlyRecap(userId: string, budgetId: string, month: Date) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const recap = await prisma.monthlyRecap.findUnique({ where: { budgetId_month: { budgetId, month } } });
   return recap ? { text: recap.text, generatedAt: recap.createdAt.toISOString() } : null;
 }
@@ -91,7 +91,7 @@ export async function getMonthlyRecap(userId: string, budgetId: string, month: D
  * explicit `force` regenerates an existing one.
  */
 export async function generateMonthlyRecap(userId: string, budgetId: string, month: Date, force = false) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   await requireAssistantEnabled(userId);
 
   if (!force) {

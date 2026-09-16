@@ -15,7 +15,7 @@ export interface MeResponse {
     onboardingCompletedAt: string | null;
   } | null;
   adsRemoved: boolean;
-  budgets: { id: string; name: string; currency: string }[];
+  budgets: { id: string; name: string; currency: string; isOwner: boolean }[];
   needsOnboarding: boolean;
   /** Whether the server has a billed Anthropic API key configured at all — see server/ai/index.ts. */
   aiAssistantAvailable: boolean;

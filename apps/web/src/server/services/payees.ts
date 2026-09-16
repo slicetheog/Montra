@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@montra/db";
 import type { Prisma } from "@prisma/client";
 import { ConflictError, NotFoundError } from "@/server/api-helpers";
-import { requireBudgetOwnership } from "@/server/services/budgets";
+import { requireBudgetAccess } from "@/server/services/budgets";
 import { logAudit } from "@/server/services/audit";
 
 type Client = Prisma.TransactionClient | typeof prisma;
@@ -15,7 +15,7 @@ export async function findOrCreatePayee(db: Client, budgetId: string, name: stri
 }
 
 export async function listPayees(userId: string, budgetId: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   return prisma.payee.findMany({
     where: { budgetId },
     orderBy: { name: "asc" },
@@ -30,7 +30,7 @@ async function requirePayeeInBudget(payeeId: string, budgetId: string) {
 }
 
 export async function renamePayee(userId: string, budgetId: string, payeeId: string, name: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   await requirePayeeInBudget(payeeId, budgetId);
   const trimmed = name.trim();
 
@@ -50,7 +50,7 @@ export async function setPayeeDefaultCategory(
   payeeId: string,
   categoryId: string | null,
 ) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   await requirePayeeInBudget(payeeId, budgetId);
   if (categoryId) {
     const category = await prisma.category.findUnique({ where: { id: categoryId } });
@@ -62,7 +62,7 @@ export async function setPayeeDefaultCategory(
 /** Merges `sourcePayeeId` into `targetPayeeId`: repoints all transactions/recurring rows, then deletes the source. */
 export async function mergePayees(userId: string, budgetId: string, sourcePayeeId: string, targetPayeeId: string) {
   if (sourcePayeeId === targetPayeeId) throw new ConflictError("Choose two different payees to merge.");
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   await requirePayeeInBudget(sourcePayeeId, budgetId);
   await requirePayeeInBudget(targetPayeeId, budgetId);
 
@@ -82,7 +82,8 @@ export async function mergePayees(userId: string, budgetId: string, sourcePayeeI
  * override it (spec: "The user must always be able to override the
  * suggestion").
  */
-export async function suggestCategoryForPayee(budgetId: string, payeeId: string): Promise<string | null> {
+export async function suggestCategoryForPayee(userId: string, budgetId: string, payeeId: string): Promise<string | null> {
+  await requireBudgetAccess(budgetId, userId);
   const payee = await prisma.payee.findUnique({ where: { id: payeeId } });
   if (!payee || payee.budgetId !== budgetId) return null;
   if (payee.defaultCategoryId) return payee.defaultCategoryId;

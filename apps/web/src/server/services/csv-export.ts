@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@montra/db";
-import { requireBudgetOwnership } from "@/server/services/budgets";
+import { requireBudgetAccess } from "@/server/services/budgets";
 
 function csvEscape(value: string): string {
   if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
@@ -8,7 +8,7 @@ function csvEscape(value: string): string {
 }
 
 export async function exportTransactionsCsv(userId: string, budgetId: string): Promise<string> {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const transactions = await prisma.transaction.findMany({
     where: { budgetId },
     orderBy: { date: "desc" },

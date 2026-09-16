@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@montra/db";
 import { cents, computeReconciliationAdjustment } from "@montra/domain";
-import { requireBudgetOwnership } from "@/server/services/budgets";
+import { requireBudgetAccess } from "@/server/services/budgets";
 import { requireAccountInBudget } from "@/server/services/accounts";
 import { findOrCreatePayee } from "@/server/services/payees";
 import { logAudit } from "@/server/services/audit";
@@ -23,7 +23,7 @@ export async function reconcileAccount(
   statementDate: Date,
   statementBalanceCents: number,
 ) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   await requireAccountInBudget(accountId, budgetId);
 
   const reconciliation = await prisma.$transaction(async (tx) => {
@@ -68,7 +68,7 @@ export async function reconcileAccount(
 }
 
 export async function listReconciliations(userId: string, budgetId: string, accountId: string) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   await requireAccountInBudget(accountId, budgetId);
   return prisma.reconciliation.findMany({ where: { accountId }, orderBy: { statementDate: "desc" } });
 }

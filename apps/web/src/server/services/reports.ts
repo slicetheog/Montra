@@ -1,7 +1,8 @@
 import "server-only";
 import { prisma } from "@montra/db";
 import { formatMonthKey, monthRange, monthStart } from "@montra/domain";
-import { requireBudgetOwnership } from "@/server/services/budgets";
+import { requireBudgetAccess } from "@/server/services/budgets";
+import { requireCategoryInBudget } from "@/server/services/budget";
 
 export interface DateRange {
   from?: Date;
@@ -9,7 +10,7 @@ export interface DateRange {
 }
 
 export async function spendingByCategory(userId: string, budgetId: string, range: DateRange) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const rows = await prisma.transactionSplit.groupBy({
     by: ["categoryId"],
     where: {
@@ -24,24 +25,28 @@ export async function spendingByCategory(userId: string, budgetId: string, range
     _sum: { amountCents: true },
   });
 
+  // Same visibility rule as listCategories/getMonthView — a category
+  // that's private to someone else doesn't get a breakdown row here
+  // either, exactly as if the viewer's spending in it were zero.
   const categories = await prisma.category.findMany({
-    where: { id: { in: rows.map((r) => r.categoryId!).filter(Boolean) } },
+    where: { id: { in: rows.map((r) => r.categoryId!).filter(Boolean) }, OR: [{ isPrivate: false }, { ownerUserId: userId }] },
     select: { id: true, name: true, group: { select: { name: true } } },
   });
   const byId = new Map(categories.map((c) => [c.id, c]));
 
   return rows
+    .filter((r) => byId.has(r.categoryId!))
     .map((r) => ({
       categoryId: r.categoryId!,
-      categoryName: byId.get(r.categoryId!)?.name ?? "Unknown",
-      groupName: byId.get(r.categoryId!)?.group.name ?? "",
+      categoryName: byId.get(r.categoryId!)!.name,
+      groupName: byId.get(r.categoryId!)!.group.name,
       amountCents: Math.abs(r._sum.amountCents ?? 0),
     }))
     .sort((a, b) => b.amountCents - a.amountCents);
 }
 
 export async function spendingByPayee(userId: string, budgetId: string, range: DateRange) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const rows = await prisma.transaction.groupBy({
     by: ["payeeId"],
     where: { budgetId, type: { in: ["EXPENSE", "CREDIT_CARD_PAYMENT"] }, payeeId: { not: null }, date: { gte: range.from, lte: range.to } },
@@ -60,7 +65,7 @@ export async function spendingByPayee(userId: string, budgetId: string, range: D
 
 /** Monthly income vs. expense (and net cash flow), across `months` trailing months up to `asOf`. */
 export async function incomeVsExpense(userId: string, budgetId: string, months: number, asOf = new Date()) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
   const from = monthStart(new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth() - (months - 1), 1)));
   const to = asOf;
 
@@ -89,7 +94,8 @@ export async function incomeVsExpense(userId: string, budgetId: string, months: 
 }
 
 export async function categoryTrend(userId: string, budgetId: string, categoryId: string, months: number, asOf = new Date()) {
-  await requireBudgetOwnership(budgetId, userId);
+  await requireBudgetAccess(budgetId, userId);
+  await requireCategoryInBudget(categoryId, budgetId, userId);
   const from = monthStart(new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth() - (months - 1), 1)));
 
   const splits = await prisma.transactionSplit.findMany({

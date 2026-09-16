@@ -12,6 +12,7 @@ export interface CategoryMonthView {
   assignedCents: number;
   activityCents: number;
   availableCents: number;
+  isPrivate: boolean;
 }
 
 export interface CategoryGroupView {
