@@ -6,5 +6,6 @@ export const updateSettingsSchema = z.object({
   firstDayOfMonth: z.number().int().min(1).max(28).optional(),
   theme: z.enum(["LIGHT", "DARK", "SYSTEM"]).optional(),
   notificationsEnabled: z.boolean().optional(),
+  aiAssistantEnabled: z.boolean().optional(),
   completeOnboarding: z.boolean().optional(),
 });

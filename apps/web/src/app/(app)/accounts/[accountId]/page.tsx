@@ -12,6 +12,7 @@ import { ACCOUNT_TYPE_LABELS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useFormatCents } from "@/hooks/use-locale-format";
 import { ReconcileDialog } from "@/components/accounts/reconcile-dialog";
+import { HoldingsPanel } from "@/components/accounts/holdings-panel";
 
 export default function AccountDetailPage({ params }: { params: Promise<{ accountId: string }> }) {
   const { accountId } = use(params);
@@ -61,6 +62,10 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
         <BalanceStat label="Cleared" cents={data.balances.clearedCents} />
         <BalanceStat label="Uncleared" cents={data.balances.unclearedCents} />
       </div>
+
+      {data.type === "INVESTMENT" && (
+        <HoldingsPanel budgetId={budgetId} accountId={accountId} currentBalanceCents={data.balances.currentCents} />
+      )}
 
       <TransactionsPanel budgetId={budgetId} filters={{ accountId }} defaultAccountId={accountId} />
 

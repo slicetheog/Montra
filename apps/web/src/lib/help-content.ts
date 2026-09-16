@@ -73,6 +73,12 @@ export const HELP_CATEGORIES: HelpCategory[] = [
           "Click the Assigned amount on any category row and type the new total for the month. It's a direct edit, not an add — typing 20.00 sets that category's assignment to exactly $20 for the month, however much was there before.",
       },
       {
+        id: "auto-assign",
+        question: "What does \"Auto-assign\" do?",
+        answer:
+          "Suggests an assignment for every category from what Montra already knows, instead of you assigning each one by hand: for a category with a recurring bill, it suggests exactly what's due this period; for one without, it suggests a recent spending average. A category that already has enough Available to cover what it needs gets no suggestion at all — it's never double-funded. If the suggestions add up to more than you have Ready to Assign, every one is scaled down proportionally rather than fully funding some and skipping others. Nothing is actually assigned until you review the list and click Apply.",
+      },
+      {
         id: "rename-delete-category",
         question: "How do I rename or delete a category or category group?",
         answer:
@@ -264,6 +270,12 @@ export const HELP_CATEGORIES: HelpCategory[] = [
         answer:
           "Net worth = total assets − total liabilities, using every account's real balance (asset accounts like checking/savings/investments minus liability accounts like credit cards/loans), on- and off-budget accounts alike. The trend chart reconstructs this at the end of each of the last 12 months directly from your transaction history, so it reflects what your accounts actually looked like at each point in time.",
       },
+      {
+        id: "investment-holdings",
+        question: "How do I track what's inside an Investment account?",
+        answer:
+          "Open an Investment account and add holdings — a name (or ticker), a quantity, and a price per share you enter yourself. Montra has no live market-data feed, so keep the price current by editing the holding whenever you check it; each update is saved so you can see its performance over time. Holdings are a breakdown of the account, not a second balance — the account's real balance still comes from its transactions, same as any other account. If the two drift apart (the market moved since your last transaction), use \"Sync value\" on the account page to log a single adjustment transaction that brings the ledger in line with what your holdings say it's worth.",
+      },
     ],
   },
   {
@@ -357,6 +369,31 @@ export const HELP_CATEGORIES: HelpCategory[] = [
         question: "What's the difference between a category and an account?",
         answer:
           "An account is a real place money lives (a checking account, a credit card). A category is a budget line inside your on-budget accounts collectively (Groceries, Rent). One account's balance can be spread across many categories; one category's Available reflects money from all your on-budget accounts combined.",
+      },
+    ],
+  },
+  {
+    id: "ai-assistant",
+    title: "AI Assistant",
+    description: "Ask questions about your budget in plain English, and get an AI-written monthly recap.",
+    articles: [
+      {
+        id: "ai-assistant-setup",
+        question: "Why can't I turn on the AI Assistant?",
+        answer:
+          "It needs a billed Anthropic API key configured on the server (each question is a real, metered API call, so it's off until an administrator deliberately sets one up). Once configured, it's still off by default for every account — turn it on yourself in Settings → Preferences to start using it.",
+      },
+      {
+        id: "ai-assistant-what-it-sees",
+        question: "What does the AI Assistant actually see?",
+        answer:
+          "A compact summary of your current budget: category names with their assigned/spent/available amounts, upcoming bills, goal progress, and net worth — never your login credentials, and never your full transaction history. Answers come only from that summary, so if it doesn't know something, it'll say so rather than guess.",
+      },
+      {
+        id: "ai-assistant-recap",
+        question: "How does the monthly recap work?",
+        answer:
+          "Click \"Generate recap\" on the Assistant page for a short, plain-English summary of the current period. It's cached once generated, so revisiting the page doesn't trigger another API call — click \"Regenerate\" if you want a fresh one after your budget's changed.",
       },
     ],
   },

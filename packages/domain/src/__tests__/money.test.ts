@@ -5,6 +5,7 @@ import {
   isNegative,
   MoneyError,
   parseDecimalToCents,
+  scaleProportionally,
   splitEvenly,
   sub,
   toDecimalString,
@@ -52,5 +53,23 @@ describe("money", () => {
   it("isNegative works for outflows", () => {
     expect(isNegative(cents(-1))).toBe(true);
     expect(isNegative(cents(0))).toBe(false);
+  });
+
+  it("scales amounts down to fit a target total, preserving proportion", () => {
+    // 300 : 200 : 100 scaled down to fit 300 total -> half of each, exactly.
+    const scaled = scaleProportionally([cents(300), cents(200), cents(100)], cents(300));
+    expect(scaled).toEqual([150, 100, 50]);
+    expect(scaled.reduce((a, b) => a + b, 0)).toBe(300);
+  });
+
+  it("scaleProportionally always sums exactly to the target, remainder cents included", () => {
+    // 3-way split of 100 into a target of 100 -> shares that don't divide
+    // evenly (33.33 each) but still sum exactly.
+    const scaled = scaleProportionally([cents(100), cents(100), cents(100)], cents(100));
+    expect(scaled.reduce((a, b) => a + b, 0)).toBe(100);
+  });
+
+  it("scaleProportionally returns all zeros when the input total is zero", () => {
+    expect(scaleProportionally([cents(0), cents(0)], cents(50))).toEqual([0, 0]);
   });
 });

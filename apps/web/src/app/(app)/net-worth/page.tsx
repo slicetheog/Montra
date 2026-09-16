@@ -9,6 +9,7 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { ACCOUNT_TYPE_LABELS } from "@/lib/constants";
 import { useFormatCents } from "@/hooks/use-locale-format";
 import { useResolvedTheme } from "@/components/providers/theme-provider";
+import { cn } from "@/lib/utils";
 
 // Same blue as Reports' "Net cash flow" line — the dataviz palette's
 // slot-1 series color, light and dark steps.
@@ -76,6 +77,49 @@ export default function NetWorthPage() {
           </div>
         </CardContent>
       </Card>
+
+      {now.data.portfolio.totalMarketValueCents > 0 && (
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-1.5">
+              Investments
+              <InfoTooltip content="Your tracked holdings across every Investment account, added up from the price you last entered for each — not a live quote. Add and update holdings from an Investment account's page." />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-3 text-sm">
+              <div>
+                <p className="text-xs text-foreground-muted">Market value</p>
+                <p className="text-lg font-semibold tabular-nums">{formatCents(now.data.portfolio.totalMarketValueCents)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-foreground-muted">Cost basis</p>
+                <p className="text-lg font-semibold tabular-nums">
+                  {now.data.portfolio.totalCostBasisCents != null ? formatCents(now.data.portfolio.totalCostBasisCents) : "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-foreground-muted">Gain / loss</p>
+                <p
+                  className={cn(
+                    "text-lg font-semibold tabular-nums",
+                    now.data.portfolio.totalGainLossCents != null && now.data.portfolio.totalGainLossCents < 0 && "text-negative",
+                    now.data.portfolio.totalGainLossCents != null && now.data.portfolio.totalGainLossCents > 0 && "text-positive",
+                  )}
+                >
+                  {now.data.portfolio.totalGainLossCents != null ? formatCents(now.data.portfolio.totalGainLossCents) : "—"}
+                  {now.data.portfolio.totalGainLossPercent != null && (
+                    <span className="ml-1 text-sm font-normal">
+                      ({now.data.portfolio.totalGainLossPercent > 0 ? "+" : ""}
+                      {now.data.portfolio.totalGainLossPercent}%)
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Card>

@@ -11,11 +11,14 @@ export interface MeResponse {
     firstDayOfMonth: number;
     theme: "LIGHT" | "DARK" | "SYSTEM";
     notificationsEnabled: boolean;
+    aiAssistantEnabled: boolean;
     onboardingCompletedAt: string | null;
   } | null;
   adsRemoved: boolean;
   budgets: { id: string; name: string; currency: string }[];
   needsOnboarding: boolean;
+  /** Whether the server has a billed Anthropic API key configured at all — see server/ai/index.ts. */
+  aiAssistantAvailable: boolean;
 }
 
 export function useMe() {

@@ -9,6 +9,7 @@ export interface UpdateSettingsInput {
   firstDayOfMonth?: number;
   theme?: "LIGHT" | "DARK" | "SYSTEM";
   notificationsEnabled?: boolean;
+  aiAssistantEnabled?: boolean;
 }
 
 export function useUpdateSettings() {

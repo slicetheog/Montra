@@ -245,6 +245,55 @@ test("full budgeting lifecycle", async ({ page }) => {
   // At least one pay period row, bounded by the twice-a-month paycheck.
   await expect(page.getByText(/OK|Short/).first()).toBeVisible();
 
+  // 12d. Auto-assign: a fresh category with a recurring bill due this
+  // period should get suggested exactly that bill's amount, and applying
+  // it should actually assign it.
+  await page.goto("/budget");
+  await page.getByRole("button", { name: "Add category group" }).click();
+  await page.getByPlaceholder("e.g. Housing").fill("Autopilot Group");
+  await page.getByRole("dialog", { name: "New category group" }).getByRole("button", { name: "Create" }).click();
+  await expect(page.getByText("Category group added.")).toBeVisible();
+
+  const groupsForAuto = await (await page.request.get(`/api/budgets/${budgetId}/categories`)).json();
+  const autopilotGroupId = groupsForAuto.find((g: { name: string }) => g.name === "Autopilot Group").id;
+  await page.locator(`[data-testid="category-group-${autopilotGroupId}"]`).getByRole("button", { name: "Category" }).click();
+  await page.getByPlaceholder("e.g. Groceries").fill("Streaming Bill");
+  await page.getByRole("dialog", { name: "New category" }).getByRole("button", { name: "Create" }).click();
+  await expect(page.getByText("Category added.")).toBeVisible();
+
+  // A monthly bill starting today lands in the current period. Auto-create
+  // is switched off so it stays a reminder-only, not-yet-materialized bill
+  // — the scenario Auto-assign is actually meant to suggest for (a bill
+  // that hasn't happened yet), rather than one the app would otherwise
+  // immediately record as a real transaction on its own.
+  await page.goto("/recurring");
+  await page.getByRole("button", { name: "New recurring transaction" }).click();
+  const autoRecurDialog = page.getByRole("dialog", { name: "New recurring transaction" });
+  await autoRecurDialog.getByRole("combobox").nth(1).click(); // Account (Type is nth(0))
+  await page.getByRole("option", { name: "Checking" }).click();
+  await autoRecurDialog.getByLabel("Payee").fill("Streaming Service");
+  await autoRecurDialog.getByLabel("Amount", { exact: true }).fill("25");
+  await autoRecurDialog.getByRole("combobox").nth(2).click(); // Category (Type=0, Account=1)
+  await page.getByRole("option", { name: /Streaming Bill/ }).click();
+  await autoRecurDialog.getByRole("switch").click();
+  await autoRecurDialog.getByRole("button", { name: "Create" }).click();
+  await expect(page.getByText("Recurring transaction created.")).toBeVisible();
+
+  await page.goto("/budget");
+  await page.getByRole("button", { name: "Auto-assign" }).click();
+  const autoAssignDialog = page.getByRole("dialog", { name: "Auto-assign" });
+  await expect(autoAssignDialog.getByText("Streaming Bill")).toBeVisible();
+  await expect(autoAssignDialog.getByText("Recurring bill")).toBeVisible();
+  await expect(autoAssignDialog.getByText("+$25.00")).toBeVisible();
+  await autoAssignDialog.getByRole("button", { name: "Apply" }).click();
+  await expect(page.getByText(/Assigned .* across/)).toBeVisible();
+
+  const categoriesAfterAuto = await (await page.request.get(`/api/budgets/${budgetId}/categories`)).json();
+  const streamingBillId = categoriesAfterAuto
+    .flatMap((g: { categories: { id: string; name: string }[] }) => g.categories)
+    .find((c: { name: string }) => c.name === "Streaming Bill").id;
+  await expect(page.locator(`[data-testid="available-${streamingBillId}"]:visible`)).toHaveText("$25.00");
+
   // 13. Import a CSV
   const csvPath = path.join(os.tmpdir(), `e2e-import-${unique}.csv`);
   fs.writeFileSync(csvPath, "Date,Payee,Amount,Memo\n2026-08-01,Gas Station,-40.00,Fill up\n");
@@ -289,6 +338,58 @@ test("full budgeting lifecycle", async ({ page }) => {
   await reconcileDialog.getByLabel("Statement ending balance").fill(clearedDollars);
   await reconcileDialog.getByRole("button", { name: "Reconcile" }).click();
   await expect(page.getByText("Account reconciled.")).toBeVisible();
+
+  // 14e. Investment holdings: add a holding to a fresh Investment account,
+  // confirm its market value and gain/loss render, then sync the account's
+  // ledger balance to match — and check Net Worth picks up the aggregate.
+  await page.goto("/accounts");
+  await page.getByRole("button", { name: "Add account" }).click();
+  const addAccountDialog = page.getByRole("dialog", { name: "Add account" });
+  await addAccountDialog.getByLabel("Name").fill("Brokerage");
+  await addAccountDialog.getByRole("combobox").click(); // Type
+  await page.getByRole("option", { name: "Investment" }).click();
+  await addAccountDialog.getByRole("button", { name: "Add account" }).click();
+  await expect(page.getByText("Brokerage added.")).toBeVisible();
+
+  const accountsAfterCreate = await (await page.request.get(`/api/budgets/${budgetId}/accounts`)).json();
+  const brokerageId = accountsAfterCreate.find((a: { name: string }) => a.name === "Brokerage").id;
+
+  await page.goto(`/accounts/${brokerageId}`);
+  await page.getByRole("button", { name: "Add holding" }).click();
+  const holdingDialog = page.getByRole("dialog", { name: "Add holding" });
+  await holdingDialog.getByLabel("Name").fill("Vanguard S&P 500 ETF");
+  await holdingDialog.getByLabel("Ticker symbol (optional)").fill("VOO");
+  await holdingDialog.getByLabel("Quantity").fill("10");
+  await holdingDialog.getByLabel("Price per share").fill("500");
+  await holdingDialog.getByLabel("Total cost basis (optional)").fill("4500");
+  await holdingDialog.getByRole("button", { name: "Add" }).click();
+  await expect(page.getByText("Holding added.")).toBeVisible();
+
+  // 10 shares @ $500 = $5,000 market value; cost basis $4,500 -> +$500 (+11.1%).
+  await expect(page.getByText("Vanguard S&P 500 ETF")).toBeVisible();
+  await expect(page.getByText("$5,000.00", { exact: true })).toBeVisible();
+  await expect(page.getByText(/\$500\.00 \(\+11\.1%\)/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Sync value" }).click();
+  await expect(page.getByText("Account balance updated to match your holdings.")).toBeVisible();
+  const brokerageAfterSync = await (await page.request.get(`/api/budgets/${budgetId}/accounts/${brokerageId}`)).json();
+  expect(brokerageAfterSync.balances.currentCents).toBe(500000);
+
+  await page.goto("/net-worth");
+  await expect(page.getByRole("heading", { name: "Investments" })).toBeVisible();
+
+  // 14f. AI Assistant: off by default, and unusable, since this e2e
+  // environment never sets ANTHROPIC_API_KEY (see playwright.config.ts) —
+  // confirms the safe default renders correctly rather than ever actually
+  // calling out to a real, billed API from a test run.
+  await page.goto("/assistant");
+  await expect(page.getByRole("heading", { name: "AI Assistant" })).toBeVisible();
+  await expect(page.getByText(/administrator needs to add a billed Anthropic API key/)).toBeVisible();
+
+  await page.goto("/settings?tab=preferences");
+  const aiToggle = page.getByRole("switch").last();
+  await expect(aiToggle).toBeDisabled();
+  await expect(page.getByText(/administrator needs to add a billed Anthropic API key/)).toBeVisible();
 
   // 14b. Help center: browse a topic, then search across all of them
   await page.goto("/help");

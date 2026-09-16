@@ -12,6 +12,7 @@
     "seed:demo": "node scripts/seed-demo.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.126.0",
     "@montra/db": "*",
     "@montra/domain": "*",
     "@prisma/client": "^6.3.0",

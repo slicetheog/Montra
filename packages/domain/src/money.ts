@@ -78,6 +78,30 @@ export function splitEvenly(total: Cents, parts: number): Cents[] {
   return result;
 }
 
+/**
+ * Scales non-negative `amounts` down so they sum to exactly `targetTotal`,
+ * preserving relative proportions as closely as whole cents allow — used
+ * when suggested budget assignments add up to more than what's actually
+ * available. Every proportional share is floored, then the shortfall from
+ * flooring (always >= 0 for a true scale-down, `targetTotal <= sum`) is
+ * added back one cent at a time from the front, same distribution style as
+ * splitEvenly. Not intended for scaling up (`targetTotal > sum`).
+ */
+export function scaleProportionally(amounts: Cents[], targetTotal: Cents): Cents[] {
+  const total = sum(amounts);
+  if (isZero(total)) return amounts.map(() => ZERO);
+  const target = assertCents(targetTotal);
+  const floors = amounts.map((a) => Math.floor((assertCents(a) * target) / assertCents(total)));
+  let remainder = target - floors.reduce((s, f) => s + f, 0);
+  return floors.map((f) => {
+    if (remainder > 0) {
+      remainder -= 1;
+      return cents(f + 1);
+    }
+    return cents(f);
+  });
+}
+
 export function isZero(a: Cents): boolean {
   return assertCents(a) === 0;
 }
