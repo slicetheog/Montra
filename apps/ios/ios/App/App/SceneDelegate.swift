@@ -17,20 +17,26 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         SceneDelegateProxy.shared.scene(scene, willConnectTo: session, options: connectionOptions)
     }
 
-    /// Mitigates a real, documented WKWebView bug (WebKit bug 142583; also
-    /// reported specifically for AirPlay/screen-mirroring, where an
-    /// embedded WebView's compositor stops presenting new frames after a
-    /// display reconfiguration — the page keeps running, but the AirPlay
-    /// output freezes on whatever was on screen when mirroring started,
-    /// e.g. the home/dashboard route). Safari's own browser engine
-    /// doesn't show this, only a bare embedded WKWebView like this app's —
-    /// see globals.css's paired #main-content fix on the web side. Not a
-    /// guaranteed fix for a poorly-documented compositor bug; this is a
-    /// best-effort second line of defense.
+    /// Fixes a confirmed bug: AirPlay screen mirroring was replacing the
+    /// phone's own portrait UI with an edge-to-edge *widescreen* render of
+    /// this app's desktop layout on the TV, not a mirror at all — confirmed
+    /// by seeing the sidebar-based desktop layout fill the TV screen, and
+    /// confirmed specific to this app's embedded WKWebView (mobile Safari
+    /// mirrors the same site correctly). That fingerprint matches a real,
+    /// documented WebKit bug (webkit.org bug 170595: "window.innerWidth/
+    /// innerHeight are bogus after resize/orientationchange in WKWebView
+    /// (but not MobileSafari)"). This app's WKWebView *is* its window's
+    /// root view (see CAPBridgeViewController.loadView, `view = webView`),
+    /// sized from the window's own bounds — those never actually change for
+    /// AirPlay (there's no external-display scene here), but the display
+    /// reconfiguration AirPlay triggers is apparently enough to make
+    /// WebKit's internal layout viewport latch onto a wrong, wider value
+    /// and never recover on its own — which is exactly what flips this
+    /// app's Tailwind `md:`/`lg:` breakpoints into their desktop layout.
     ///
     /// `UIScreen.capturedDidChangeNotification`/`isCaptured` fire for
     /// AirPlay mirroring, screen recording, and QuickTime capture over
-    /// cable alike — nudging a repaint in response to any of them is
+    /// cable alike — recomputing layout in response to any of them is
     /// harmless.
     private func observeScreenCapture() {
         screenCaptureObserver = NotificationCenter.default.addObserver(
@@ -39,28 +45,32 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             queue: .main
         ) { [weak self] _ in
             guard UIScreen.main.isCaptured else { return }
-            self?.nudgeWebViewToForceRepaint()
+            self?.resetWebViewViewport()
         }
     }
 
-    /// Imperceptibly bumps the web view's scroll offset and immediately
-    /// reverts it, which forces WebKit to recompute and repaint the
-    /// visible layer rather than reuse whatever stale frame it composited
-    /// last — a well-known community workaround for a "stuck" WKWebView
-    /// render, done twice (immediately, then again after the AirPlay
-    /// handshake has had time to settle) since the exact moment the
-    /// compositor gets stuck relative to the notification isn't
-    /// documented.
-    private func nudgeWebViewToForceRepaint() {
-        guard let webView = (window?.rootViewController as? CAPBridgeViewController)?.webView else { return }
+    /// Toggles the web view's frame through a different size and back to
+    /// its real, correct size (the window's own bounds), which forces
+    /// WebKit to recompute layout — and therefore every CSS media query —
+    /// against the view's *current* bounds. Simply re-assigning the same
+    /// frame value is a no-op UIKit can (and does) skip, which is why this
+    /// dips the width by a single, imperceptible point first. Done twice
+    /// (immediately, then again after the AirPlay handshake has had time to
+    /// settle) since the exact moment WebKit's layout viewport gets stuck
+    /// relative to the notification isn't documented.
+    private func resetWebViewViewport() {
+        guard let webView = (window?.rootViewController as? CAPBridgeViewController)?.webView,
+              let window = window else { return }
         for delay in [0.0, 1.0] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                let scrollView = webView.scrollView
-                let original = scrollView.contentOffset
-                scrollView.setContentOffset(CGPoint(x: original.x, y: original.y + 1), animated: false)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                    scrollView.setContentOffset(original, animated: false)
-                }
+                let correctFrame = window.bounds
+                webView.frame = CGRect(
+                    origin: correctFrame.origin,
+                    size: CGSize(width: correctFrame.width - 1, height: correctFrame.height)
+                )
+                webView.layoutIfNeeded()
+                webView.frame = correctFrame
+                webView.layoutIfNeeded()
             }
         }
     }
