@@ -163,6 +163,33 @@
     font-feature-settings: "cv11", "ss01";
   }
 
+  /* Forces the main content region onto its own GPU compositing layer.
+     Mitigates a real, documented WKWebView bug (WebKit bug 142583; also
+     reported for AirPlay/screen-mirroring specifically, where the embedded
+     WebView's compositor stops presenting new frames after a display
+     reconfiguration — DOM/JS keep running, but the picture freezes on a
+     stale frame) that the iOS shell (apps/ios) is exposed to since it's
+     just a bare WKWebView, unlike Safari's own browser engine, which
+     doesn't show the bug. `translateZ(0)` (not `will-change`, which is
+     only an optional hint the engine can ignore) forces an actual,
+     persistent layer WebKit's frame-capture pipeline can keep tracking
+     through a screen-mirroring reconnect.
+
+     Deliberately scoped to #main-content (app-shell.tsx's <main>, not
+     `body`): a `transform` on an element makes it the containing block
+     for its `position: fixed` descendants, and this app has several —
+     Radix Dialog's overlay/content (dialog.tsx, portaled to `body`),
+     the toaster (toaster.tsx), and the mobile bottom nav (app-shell.tsx)
+     all rely on `fixed` being positioned against the real viewport.
+     #main-content is a sibling of all of them, never an ancestor, so it
+     can't break that. Not a guaranteed fix for a poorly-documented
+     compositor bug — paired with a native-side UIScreen.isCaptured
+     listener in the iOS shell as a second line of defense (see
+     ios/App/App/AppDelegate.swift). */
+  #main-content {
+    transform: translateZ(0);
+  }
+
   :focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
